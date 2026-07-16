@@ -243,7 +243,9 @@ if (src.startsWith('data:')) {
                     let zigzagY = Math.sin(progress * Math.PI * 30) * 15;
                     let handY = layout.y + (layout.height / 2) + zigzagY;
 
-                    ctx.drawImage(handImg, handX, handY - 30, 100, 100); 
+                    // Kamu bisa mengubah angka -30 ini untuk menaikkan/menurunkan posisi ujung pensil
+                    // Dan kamu bisa menambahkan pengurangan di handX untuk memajukan/memundurkannya
+                    ctx.drawImage(handImg, handX - 20, handY - 30, 100, 100);
                 }
             }
 
