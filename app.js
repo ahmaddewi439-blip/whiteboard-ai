@@ -1,7 +1,9 @@
 const API_KEY = 'AIzaSyDFWxSABJBNIWs1jZSG2-tShoYEXgKZNgA'; 
-let arrayGambarTerpilih = []; // Tempat menyimpan gambar yang diklik user
+const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00'; // 👈 Tempel key Pixabay-mu di sini!
 
-// --- TOMBOL 1: MENCARI GAMBAR DARI INTERNET ---
+let arrayGambarTerpilih = []; 
+
+// --- TOMBOL 1: MENCARI GAMBAR SKETSA DARI PIXABAY ---
 document.getElementById('searchBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
     const gallery = document.getElementById('imageGallery');
@@ -9,9 +11,9 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     if (!scriptText) return alert("Isi skripnya dulu ya!");
 
     document.getElementById('searchBtn').innerText = "AI sedang berpikir...";
-    gallery.innerHTML = "<p>Sedang mencari gambar di internet...</p>";
+    gallery.innerHTML = "<p>Sedang meracik kata kunci dan mencari sketsa...</p>";
 
-    // 1. Panggil Gemini (Meminta hasil Bahasa Inggris untuk Iconify)
+    // 1. Panggil Gemini (Mendapatkan Bahasa Inggris)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
     const prompt = `Bacalah skrip berikut: "${scriptText}". Ekstrak maksimal 3 kata benda visual utama. Berikan output HANYA array JSON teks polos dalam BAHASA INGGRIS, contoh: ["cat", "milk", "table"]`;
 
@@ -23,42 +25,63 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
         });
 
         const data = await response.json();
-        let keywords = ["cat", "drink", "table"]; // Fallback bawaan
+        let keywords = ["cat", "drink", "table"]; // Fallback
 
         if (response.ok) {
             const responTeks = data.candidates[0].content.parts[0].text.trim();
             keywords = JSON.parse(responTeks.replace(/```json|```/g, ''));
         }
 
-        // 2. Cari gambar di Iconify API berdasarkan bahasa Inggris
         gallery.innerHTML = ""; 
+
+        // 2. Cari gambar di Pixabay API dengan filter "Sketsa Pro"
         for (let keyword of keywords) {
-            const res = await fetch(`https://api.iconify.design/search?query=${keyword}&limit=4`);
-            const iconData = await res.json();
+            // Kita tambahkan kata "line art sketch" agar yang keluar gaya coretan
+            const searchQuery = encodeURIComponent(keyword + " line art sketch");
             
-            if (iconData.icons && iconData.icons.length > 0) {
-                iconData.icons.forEach(iconName => {
-                    const [prefix, name] = iconName.split(':');
-                    const imgSrc = `https://api.iconify.design/${prefix}/${name}.svg?color=black`; // Paksa warna hitam ala whiteboard
-                    
+            // Filter: Hanya cari tipe ilustrasi, berorientasi horizontal/kotak, agar cocok di video
+            const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=illustration&colors=black&per_page=5`;
+            
+            const res = await fetch(pixabayUrl);
+            const pixabayData = await res.json();
+            
+            if (pixabayData.hits && pixabayData.hits.length > 0) {
+                // Buat kotak pemisah untuk tiap objek agar rapi (Sesuai idemu: 3-10 pilihan per objek)
+                const barisObjek = document.createElement('div');
+                barisObjek.style.marginBottom = "15px";
+                barisObjek.style.paddingBottom = "10px";
+                barisObjek.style.borderBottom = "1px solid #ddd";
+                barisObjek.innerHTML = `<p style="margin: 5px 0; font-weight: bold; color: #333;">Pilih Sketsa untuk: "${keyword}"</p>`;
+                
+                pixabayData.hits.forEach(hit => {
                     const imgEl = document.createElement('img');
-                    imgEl.src = imgSrc;
+                    imgEl.src = hit.webformatURL; // Menggunakan URL gambar dari Pixabay
                     imgEl.className = 'ikon-hasil';
                     imgEl.title = `Klik untuk memilih ${keyword}`;
                     
-                    // Logika ketika gambar diklik
-                    imgEl.onclick = () => pilihGambar(imgSrc);
-                    gallery.appendChild(imgEl);
+                    // Supaya gambar yang di-load ukurannya pas di galeri
+                    imgEl.style.width = "80px";
+                    imgEl.style.height = "80px";
+                    imgEl.style.objectFit = "contain";
+                    
+                    imgEl.onclick = () => pilihGambar(hit.webformatURL);
+                    barisObjek.appendChild(imgEl);
                 });
+                
+                gallery.appendChild(barisObjek);
+            } else {
+                gallery.innerHTML += `<p style="color:red;">Maaf, sketsa untuk "${keyword}" tidak ditemukan. Coba unggah manual.</p>`;
             }
         }
         document.getElementById('searchBtn').innerText = "Selesai! Silakan pilih gambarnya";
     } catch (error) {
-        gallery.innerHTML = "Gagal menghubungi internet. Coba gunakan fitur Unggah Manual.";
+        gallery.innerHTML = "Gagal menghubungi API. Pastikan API Key Pixabay sudah benar.";
         document.getElementById('searchBtn').innerText = "Menganalisis Skrip & Cari Gambar";
+        console.error(error);
     }
 });
 
+// ... (KODE KEBAWAHNYA TETAP SAMA SEPERTI SEBELUMNYA: FITUR UPLOAD MANUAL & RENDER VIDEO) ...
 // --- FITUR UPLOAD GAMBAR MANUAL ---
 document.getElementById('uploadManualBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
