@@ -34,8 +34,9 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 
 // Fungsi untuk meminta Gemini mengekstrak kata kunci gambar (VERSI UPDATE)
 async function dapatkanKataKunciDariGemini(skrip) {
-    // Kita tambahkan "-latest" di nama modelnya agar selalu menggunakan versi yang tersedia
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+// GANTI DENGAN BARIS INI (Gunakan gemini-pro)
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
     
     const prompt = `Bacalah skrip berikut: "${skrip}". Ekstrak maksimal 3 kata benda/objek visual yang paling mewakili skrip tersebut untuk dijadikan animasi gambar. Berikan output HANYA dalam bentuk array JSON teks polos tanpa format markdown, contoh: ["sedih", "topeng", "rumah"]`;
 
