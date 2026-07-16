@@ -102,18 +102,23 @@ document.getElementById('recordBtn').addEventListener('click', async () => {
     document.getElementById('downloadBtn').style.display = "inline-block";
 });
 
+// --- FUNGSI REKAMAN V3 (DENGAN ANIMASI TANGAN & MASKING) ---
 function mulaiAnimasiDanRekam(daftarGambar) {
     return new Promise((resolve) => {
         const canvas = document.getElementById('whiteboardCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Load semua gambar terpilih ke memori
+        // 1. Pre-load Gambar Tangan Pensil
+        const handImg = new Image();
+        handImg.src = 'tangan-pensil.png'; // Pastikan file ini ada di foldermu!
+        
+        // 2. Pre-load Gambar Hasil Pencarian
         const loadedImages = [];
         let imagesToLoad = daftarGambar.length;
 
         daftarGambar.forEach((src, index) => {
             const img = new Image();
-            img.crossOrigin = "Anonymous"; // Mencegah error CORS dari Iconify
+            img.crossOrigin = "Anonymous";
             img.src = src;
             img.onload = () => {
                 loadedImages[index] = img;
@@ -136,20 +141,61 @@ function mulaiAnimasiDanRekam(daftarGambar) {
 
             mediaRecorder.start();
             let frame = 0;
-            ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
             function drawLoop() {
                 ctx.fillStyle = "#fff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height); 
 
-                // Munculkan secara berurutan
-                if (frame > 30 && loadedImages[0]) ctx.drawImage(loadedImages[0], 50, 100, 150, 150);
-                if (frame > 90 && loadedImages[1]) ctx.drawImage(loadedImages[1], 250, 100, 150, 150);
-                if (frame > 150 && loadedImages[2]) ctx.drawImage(loadedImages[2], 450, 100, 150, 150);
+                // Logika Waktu: Tiap gambar diberi durasi 90 frame (3 detik)
+                let currentImageIndex = Math.floor(frame / 90);
+                let currentFrame = frame % 90; 
+
+                // A. Tampilkan penuh gambar yang SUDAH selesai digambar
+                for (let i = 0; i < currentImageIndex; i++) {
+                    if (loadedImages[i]) {
+                        ctx.drawImage(loadedImages[i], 50 + (i * 180), 100, 150, 150);
+                    }
+                }
+
+                // B. Animasikan gambar yang SEDANG digambar saat ini
+                if (currentImageIndex < loadedImages.length && loadedImages[currentImageIndex]) {
+                    // Beri waktu 60 frame untuk menggambar, 30 frame untuk jeda antar gambar
+                    let progress = currentFrame / 60; 
+                    if (progress > 1) progress = 1;
+
+                    let xPos = 50 + (currentImageIndex * 180);
+                    let yPos = 100;
+                    let size = 150;
+
+                    // Trik Masking (Clip): Memunculkan area gambar secara perlahan dari kiri
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(xPos, yPos, size * progress, size);
+                    ctx.clip();
+                    ctx.drawImage(loadedImages[currentImageIndex], xPos, yPos, size, size);
+                    ctx.restore();
+
+                    // Trik Gerakan Tangan: Munculkan tangan jika gambar belum selesai 100%
+                    if (progress < 1 && handImg.complete && handImg.naturalWidth !== 0) {
+                        // Menggunakan rumus Sinus untuk membuat gerakan naik-turun (zigzag arsir)
+                        let zigzagY = Math.sin(progress * Math.PI * 15) * 15; 
+                        
+                        let handX = xPos + (size * progress) - 20; // Posisi sumbu X maju ke kanan
+                        let handY = yPos + (size / 2) + zigzagY;   // Posisi sumbu Y mengarsir
+                        
+                        // Gambar tangan (ukuran 100x100, sesuaikan jika kekecilan/kebesaran)
+                        ctx.drawImage(handImg, handX, handY, 100, 100);
+                    }
+                }
 
                 frame++;
-                if (frame < 240) { requestAnimationFrame(drawLoop); } 
-                else { mediaRecorder.stop(); }
+                
+                // Berhenti merekam jika semua gambar di antrean sudah selesai
+                if (currentImageIndex >= loadedImages.length) {
+                    mediaRecorder.stop();
+                } else {
+                    requestAnimationFrame(drawLoop); // Lanjut ke frame berikutnya
+                }
             }
             drawLoop();
         }
