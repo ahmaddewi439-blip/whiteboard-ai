@@ -1,9 +1,9 @@
 const API_KEY = 'AIzaSyDFWxSABJBNIWs1jZSG2-tShoYEXgKZNgA'; 
-const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00'; // 👈 Tempel key Pixabay-mu di sini!
+const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00';
 
 let arrayGambarTerpilih = []; 
 
-// --- TOMBOL 1: MENCARI GAMBAR SKETSA DARI PIXABAY ---
+// --- TOMBOL 1: MENCARI GAMBAR SKETSA (VERSI SUPER PINTAR) ---
 document.getElementById('searchBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
     const gallery = document.getElementById('imageGallery');
@@ -11,21 +11,21 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     if (!scriptText) return alert("Isi skripnya dulu ya!");
 
     document.getElementById('searchBtn').innerText = "AI sedang berpikir...";
-    gallery.innerHTML = "<p>Sedang meracik kata kunci dan mencari sketsa...</p>";
+    gallery.innerHTML = "<p>Sedang meracik kata kunci dan mencari sketsa transparan...</p>";
 
-    // 1. Panggil Gemini (Mendapatkan Bahasa Inggris)
+    // PERBAIKAN 1: Memaksa AI hanya mengambil "Kata Benda" (Bukan kata kerja)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
-    const prompt = `Bacalah skrip berikut: "${scriptText}". Ekstrak maksimal 3 kata benda visual utama. Berikan output HANYA array JSON teks polos dalam BAHASA INGGRIS, contoh: ["cat", "milk", "table"]`;
+    const prompt = `Bacalah skrip berikut: "${scriptText}". Ekstrak maksimal 3 KATA BENDA (objek/hewan/orang) yang paling menonjol. JANGAN gunakan kata kerja. Berikan output HANYA array JSON teks polos dalam BAHASA INGGRIS, contoh: ["cat", "milk", "table"]`;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 }})
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2 }}) // Temperature diturunkan agar AI lebih logis
         });
 
         const data = await response.json();
-        let keywords = ["cat", "drink", "table"]; // Fallback
+        let keywords = ["cat", "milk", "table"]; 
 
         if (response.ok) {
             const responTeks = data.candidates[0].content.parts[0].text.trim();
@@ -34,19 +34,17 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
 
         gallery.innerHTML = ""; 
 
-        // 2. Cari gambar di Pixabay API dengan filter "Sketsa Pro"
         for (let keyword of keywords) {
-            // Kita tambahkan kata "line art sketch" agar yang keluar gaya coretan
-            const searchQuery = encodeURIComponent(keyword + " line art sketch");
+            // PERBAIKAN 2: Kata kunci pencarian diubah ke "outline clipart" agar bergaris dan transparan
+            const searchQuery = encodeURIComponent(keyword + " outline clipart");
             
-            // Filter: Hanya cari tipe ilustrasi, berorientasi horizontal/kotak, agar cocok di video
-            const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=illustration&colors=black&per_page=5`;
+            // PERBAIKAN 3: Ubah image_type menjadi vector dan hapus colors=black yang bikin error background gelap
+            const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=vector&per_page=5`;
             
             const res = await fetch(pixabayUrl);
             const pixabayData = await res.json();
             
             if (pixabayData.hits && pixabayData.hits.length > 0) {
-                // Buat kotak pemisah untuk tiap objek agar rapi (Sesuai idemu: 3-10 pilihan per objek)
                 const barisObjek = document.createElement('div');
                 barisObjek.style.marginBottom = "15px";
                 barisObjek.style.paddingBottom = "10px";
@@ -55,14 +53,15 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                 
                 pixabayData.hits.forEach(hit => {
                     const imgEl = document.createElement('img');
-                    imgEl.src = hit.webformatURL; // Menggunakan URL gambar dari Pixabay
+                    imgEl.src = hit.webformatURL; 
                     imgEl.className = 'ikon-hasil';
                     imgEl.title = `Klik untuk memilih ${keyword}`;
-                    
-                    // Supaya gambar yang di-load ukurannya pas di galeri
                     imgEl.style.width = "80px";
                     imgEl.style.height = "80px";
                     imgEl.style.objectFit = "contain";
+                    
+                    // Tambahkan background putih semu agar jika gambar dari Pixabay transparan, tetap terlihat jelas di layar
+                    imgEl.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
                     
                     imgEl.onclick = () => pilihGambar(hit.webformatURL);
                     barisObjek.appendChild(imgEl);
@@ -70,18 +69,16 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                 
                 gallery.appendChild(barisObjek);
             } else {
-                gallery.innerHTML += `<p style="color:red;">Maaf, sketsa untuk "${keyword}" tidak ditemukan. Coba unggah manual.</p>`;
+                gallery.innerHTML += `<p style="color:red;">Sketsa untuk "${keyword}" tidak ditemukan. Coba unggah manual.</p>`;
             }
         }
         document.getElementById('searchBtn').innerText = "Selesai! Silakan pilih gambarnya";
     } catch (error) {
-        gallery.innerHTML = "Gagal menghubungi API. Pastikan API Key Pixabay sudah benar.";
+        gallery.innerHTML = "Gagal menghubungi API Pixabay.";
         document.getElementById('searchBtn').innerText = "Menganalisis Skrip & Cari Gambar";
         console.error(error);
     }
 });
-
-// ... (KODE KEBAWAHNYA TETAP SAMA SEPERTI SEBELUMNYA: FITUR UPLOAD MANUAL & RENDER VIDEO) ...
 // --- FITUR UPLOAD GAMBAR MANUAL ---
 document.getElementById('uploadManualBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
