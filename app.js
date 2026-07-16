@@ -1,4 +1,4 @@
-const API_KEY = 'AIzaSyA0uf4GrrZqsQK6-aDI8AFYde0G4TWg9_Q'; 
+const API_KEY = 'AIzaSyDFWxSABJBNIWs1jZSG2-tShoYEXgKZNgA'; 
 
 document.getElementById('generateBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
