@@ -12,8 +12,8 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
 
     document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
     gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
-
-const url = "https://lite.koboiilm.com/v1/chat/completions";
+    
+const url = "https://lite.koboillm.com/v1/chat/completions";
     const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
 
     try {
