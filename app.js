@@ -12,8 +12,9 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
 
     document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
     gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
-    
+
 const url = "https://lite.koboillm.com/v1/chat/completions";
+
     const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
 
     try {
@@ -46,11 +47,12 @@ const url = "https://lite.koboillm.com/v1/chat/completions";
 
         // PERBAIKAN 3: Strategi Pencarian Pixabay yang Baru
         for (let keyword of keywords) {
-            // Cukup tambahkan kata "sketch" atau "drawing" agar Pixabay tidak bingung
-            const searchQuery = encodeURIComponent(keyword + " sketch");
-            
-            // Hapus filter warna yang bikin error, cukup filter tipe gambar ke vector
-            const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=vector&per_page=5`;
+     
+// 1. Kita paksa Pixabay mencari "outline" (garis luar) atau "doodle" (coretan)
+const searchQuery = encodeURIComponent(keyword + " outline doodle");
+
+// 2. Kita tambahkan filter colors=grayscale agar gambarnya tidak warna-warni
+const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=vector&colors=grayscale&per_page=5`;
             
             const res = await fetch(pixabayUrl);
             const pixabayData = await res.json();
