@@ -1,4 +1,4 @@
-const API_KEY = 'AIzaSyDFWxSABJBNIWs1jZSG2-tShoYEXgKZNgA'; 
+const KOBOI_API_KEY = 'sk-yYZlMG4TnNb2curlh9fwfg'; // berawalan sk-...
 const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00';
 
 let arrayGambarTerpilih = []; 
@@ -13,35 +13,35 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
     gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
 
-// GANTI BARIS URL-NYA MENJADI PERSIS SEPERTI INI:
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${API_KEY.trim()}`;
+const url = "https://lite.koboiilm.com/v1/chat/completions";
     const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ parts: [{ text: prompt }] }], 
-                generationConfig: { temperature: 0.1 } // Suhu diturunkan drastis agar AI tidak berhalusinasi
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${KOBOI_API_KEY}` 
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini", 
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.1
             })
         });
 
         const data = await response.json();
 
-        // PERBAIKAN 2: Jika Google menolak, beritahu errornya, JANGAN pakai kata kunci palsu!
         if (!response.ok) {
-            console.error("Error Google API:", data);
-            throw new Error(`AI Google Gagal: ${data.error?.message || 'Koneksi Ditolak'}`);
+            console.error("Error API Koboi:", data);
+            throw new Error(`AI Gagal: ${data.error?.message || 'Koneksi Ditolak'}`);
         }
 
-        const responTeks = data.candidates[0].content.parts[0].text.trim();
-        // Memaksa mencari format array dari teks campuran
+        const responTeks = data.choices[0].message.content.trim(); 
         const jsonMatch = responTeks.match(/\[(.*?)\]/);
         if (!jsonMatch) throw new Error("AI tidak memberikan format JSON yang benar.");
-        
-        const keywords = JSON.parse(jsonMatch[0]);
 
+        const keywords = JSON.parse(jsonMatch[0]);
         gallery.innerHTML = ""; 
 
         // PERBAIKAN 3: Strategi Pencarian Pixabay yang Baru
