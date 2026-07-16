@@ -76,55 +76,88 @@ async function dapatkanKataKunciDariGemini(skrip) {
     }
 }
 
-// Fungsi Perekaman menggunakan MediaRecorder API
+
+// FUNGSI PEREKAMAN UPDATE (Tahap 2: Menampilkan Gambar Asli)
 function mulaiAnimasiDanRekam(keywords) {
     return new Promise((resolve) => {
         const canvas = document.getElementById('whiteboardCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Setup Perekam Layar Canvas (30 FPS)
-        const stream = canvas.captureStream(30);
-        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        let chunks = [];
+        // --- 1. PROSES PRE-LOAD GAMBAR ---
+        // Kita harus memuat (loading) gambar dari folder ke memori sebelum direkam
+        const loadedImages = [];
+        let imagesToLoad = keywords.length;
 
-        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-        
-        mediaRecorder.onstop = () => {
-            // Mengubah rekaman mentah menjadi file video download siap pakai
-            const blob = new Blob(chunks, { type: 'video/webm' });
-            const videoURL = URL.createObjectURL(blob);
-            document.getElementById('downloadBtn').href = videoURL;
-            resolve();
-        };
+        keywords.forEach((keyword, index) => {
+            const img = new Image();
+            img.src = `${keyword}.svg`; // Memanggil file gambar sesuai kata kunci AI
 
-        // Mulai Merekam
-        mediaRecorder.start();
+            // Jika gambar berhasil ditemukan di folder
+            img.onload = () => {
+                loadedImages[index] = img;
+                imagesToLoad--;
+                if (imagesToLoad === 0) jalankanRekaman(); // Mulai rekam jika semua gambar siap
+            };
 
-        // LOGIKA ANIMASI SEDERHANA (Tahap Pertama: Simulasi Menulis Teks Gambar)
-        let frame = 0;
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Bersihkan kanvas awal
+            // Jika gambar tidak ada/gagal dimuat
+            img.onerror = () => {
+                console.warn(`Gambar ${keyword}.svg tidak ditemukan di folder!`);
+                loadedImages[index] = null; 
+                imagesToLoad--;
+                if (imagesToLoad === 0) jalankanRekaman();
+            };
+        });
 
-        function drawLoop() {
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height); // Background putih
+        // --- 2. PROSES ANIMASI & REKAM VIDEO ---
+        function jalankanRekaman() {
+            const stream = canvas.captureStream(30);
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            let chunks = [];
 
-            ctx.fillStyle = "#333";
-            ctx.font = "24px Arial";
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
             
-            // Menggambar simulasi tulisan keyword di kanvas seiring berjalannya waktu (Max 10 detik / 300 frame)
-            if (frame > 30 && keywords[0]) ctx.fillText(`✍️ [Menggambar: ${keywords[0]}]`, 50, 100);
-            if (frame > 90 && keywords[1]) ctx.fillText(`✍️ [Menggambar: ${keywords[1]}]`, 50, 180);
-            if (frame > 150 && keywords[2]) ctx.fillText(`✍️ [Menggambar: ${keywords[2]}]`, 50, 260);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const videoURL = URL.createObjectURL(blob);
+                document.getElementById('downloadBtn').href = videoURL;
+                resolve();
+            };
 
-            frame++;
+            mediaRecorder.start();
 
-            if (frame < 240) { // Batasi sekitar 8 detik durasi render
-                requestAnimationFrame(drawLoop);
-            } else {
-                mediaRecorder.stop(); // Berhenti merekam setelah durasi habis
+            let frame = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+
+            function drawLoop() {
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height); 
+
+                // Format drawImage: ctx.drawImage(VariabelGambar, Posisi X, Posisi Y, Lebar, Tinggi);
+
+                // Munculkan Gambar 1 (kucing.svg) di frame 30
+                if (frame > 30 && loadedImages[0]) {
+                    ctx.drawImage(loadedImages[0], 50, 100, 150, 150); 
+                }
+                
+                // Munculkan Gambar 2 (berjalan.svg) di frame 90
+                if (frame > 90 && loadedImages[1]) {
+                    ctx.drawImage(loadedImages[1], 250, 100, 150, 150);
+                }
+                
+                // Munculkan Gambar 3 (cepat.svg) di frame 150
+                if (frame > 150 && loadedImages[2]) {
+                    ctx.drawImage(loadedImages[2], 450, 100, 150, 150);
+                }
+
+                frame++;
+
+                if (frame < 240) { // Render selama ~8 detik
+                    requestAnimationFrame(drawLoop);
+                } else {
+                    mediaRecorder.stop();
+                }
             }
+            drawLoop();
         }
-
-        drawLoop();
     });
 }
