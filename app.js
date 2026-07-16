@@ -151,7 +151,14 @@ function mulaiAnimasiDanRekam(daftarGambar) {
         daftarGambar.forEach((src, index) => {
             const img = new Image();
             img.crossOrigin = "Anonymous";
-            img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`;
+            // GANTI MENJADI SEPERTI INI:
+if (src.startsWith('data:')) {
+    // Jika ini adalah gambar upload manual dari PC/HP, jangan pakai proxy
+    img.src = src;
+} else {
+    // Jika ini adalah gambar link dari Pixabay, tembus pakai proxy
+    img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`;
+}
             img.onload = () => {
                 loadedImages[index] = img;
                 imagesToLoad--;
