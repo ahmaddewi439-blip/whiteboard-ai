@@ -13,8 +13,8 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
     gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
 
-   // GANTI MENJADI BARIS INI:
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
+// GANTI BARIS URL-NYA MENJADI PERSIS SEPERTI INI:
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${API_KEY.trim()}`;
     const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
 
     try {
