@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whiteboard AI Video Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; text-align: center; }
+        textarea { width: 100%; height: 80px; margin-bottom: 10px; padding: 10px; font-size: 16px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; }
+        button:disabled { background-color: #cccccc; }
+        #canvasContainer { margin-top: 20px; display: flex; justify-content: center; }
+        canvas { border: 2px solid #333; background-color: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        #downloadBtn { display: none; margin-top: 20px; background-color: #28a745; }
+    </style>
+</head>
+<body>
+
+    <h1>Whiteboard AI Animator</h1>
+    <p>Masukkan skrip cerita pendekmu di bawah ini (Max 10 detik):</p>
+    
+    <textarea id="scriptInput" placeholder="Contoh: Aku merasa sedih hari ini, rasanya ingin memakai topeng untuk menyembunyikan emosiku..."></textarea>
+    <br>
+    <button id="generateBtn">Mulai Render Video</button>
+
+    <div id="canvasContainer">
+        <!-- Kanvas resolusi standar 16:9 (640x360) -->
+        <canvas id="whiteboardCanvas" width="640" height="360"></canvas>
+    </div>
+
+    <br>
+    <a id="downloadBtn" download="video-whiteboard.webm"><button style="background:transparent; border:none; color:white; padding:0;">Unduh Video (.webm)</button></a>
+
+    <script src="app.js"></script>
+</body>
+</html>
