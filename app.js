@@ -185,9 +185,9 @@ if (src.startsWith('data:')) {
                 ctx.fillStyle = "#fff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height); 
 
-                // Logika Waktu: Tiap gambar diberi durasi 90 frame (3 detik)
-                let currentImageIndex = Math.floor(frame / 90);
-                let currentFrame = frame % 90; 
+                // Logika Waktu: Tiap gambar diberi durasi 180 frame (3 detik)
+                let currentImageIndex = Math.floor(frame / 180);
+                let currentFrame = frame % 180; 
 
                 // A. Tampilkan penuh gambar yang SUDAH selesai digambar
                 for (let i = 0; i < currentImageIndex; i++) {
@@ -198,8 +198,8 @@ if (src.startsWith('data:')) {
 
                 // B. Animasikan gambar yang SEDANG digambar saat ini
                 if (currentImageIndex < loadedImages.length && loadedImages[currentImageIndex]) {
-                    // Beri waktu 60 frame untuk menggambar, 30 frame untuk jeda antar gambar
-                    let progress = currentFrame / 60; 
+                    // GANTI MENJADI SEPERTI INI (140 frame untuk menggambar, 40 frame jeda santai):
+                    let progress = currentFrame / 140; 
                     if (progress > 1) progress = 1;
 
                     let xPos = 50 + (currentImageIndex * 180);
@@ -216,8 +216,8 @@ if (src.startsWith('data:')) {
 
                     // Trik Gerakan Tangan: Munculkan tangan jika gambar belum selesai 100%
                     if (progress < 1 && handImg.complete && handImg.naturalWidth !== 0) {
-                        // Menggunakan rumus Sinus untuk membuat gerakan naik-turun (zigzag arsir)
-                        let zigzagY = Math.sin(progress * Math.PI * 15) * 15; 
+                        // GANTI MENJADI SEPERTI INI (Ubah angka 15 yang di tengah menjadi 30):
+                        let zigzagY = Math.sin(progress * Math.PI * 30) * 15;
                         
                         let handX = xPos + (size * progress) - 20; // Posisi sumbu X maju ke kanan
                         let handY = yPos + (size / 2) + zigzagY;   // Posisi sumbu Y mengarsir
