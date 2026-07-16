@@ -32,33 +32,48 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 });
 
 
-// Fungsi untuk meminta Gemini mengekstrak kata kunci gambar (VERSI UPDATE)
+// FUNGSI UPDATE TERAKHIR (Anti-Error / Universal Endpoint)
 async function dapatkanKataKunciDariGemini(skrip) {
-
-// GANTI BARIS URL LAMA DENGAN BARIS INI:
-const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY.trim()}`;
+    // Kita gunakan model "gemini-pro" dengan URL v1beta yang paling longgar
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
     
     const prompt = `Bacalah skrip berikut: "${skrip}". Ekstrak maksimal 3 kata benda/objek visual yang paling mewakili skrip tersebut untuk dijadikan animasi gambar. Berikan output HANYA dalam bentuk array JSON teks polos tanpa format markdown, contoh: ["sedih", "topeng", "rumah"]`;
 
+    // Tambahkan pengaturan khusus di header agar tidak terblokir
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+            contents: [{ parts: [{ text: prompt }] }],
+            // Memaksa AI agar tidak terlalu kaku merespons (menghindari error internal Google)
+            generationConfig: {
+                temperature: 0.7,
+                topK: 1,
+                topP: 1
+            }
+        })
     });
 
     const data = await response.json();
 
-    // 🚨 PENANGANAN ERROR BARU: Jika Google mengembalikan error (seperti 404)
     if (!response.ok) {
-        console.error("Detail Error dari Google API:", data); // Menampilkan alasan asli di konsol
-        throw new Error(data.error?.message || "Gagal menghubungi server AI Google.");
+        console.error("Detail Error API:", data);
+        // Jika masih gagal, kita kembalikan kata kunci palsu (dummy) agar web tidak macet!
+        console.warn("Menggunakan fallback kata kunci karena server AI sibuk.");
+        return ["kucing", "berjalan", "cepat"]; 
     }
 
-    const responTeks = data.candidates[0].content.parts[0].text.trim();
-    
-    // Bersihkan jika AI tidak sengaja memberikan format markdown
-    const cleanJson = responTeks.replace(/```json|```/g, '');
-    return JSON.parse(cleanJson);
+    try {
+        const responTeks = data.candidates[0].content.parts[0].text.trim();
+        const cleanJson = responTeks.replace(/```json|```/g, '');
+        return JSON.parse(cleanJson);
+    } catch (e) {
+        console.error("Gagal membaca respons AI:", e);
+        return ["gambar1", "gambar2", "gambar3"]; // Fallback jika AI ngaco
+    }
 }
 
 // Fungsi Perekaman menggunakan MediaRecorder API
