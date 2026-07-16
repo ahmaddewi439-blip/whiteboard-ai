@@ -3,42 +3,53 @@ const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00';
 
 let arrayGambarTerpilih = []; 
 
-// --- TOMBOL 1: MENCARI GAMBAR SKETSA (VERSI SUPER PINTAR) ---
+// --- TOMBOL 1: MENCARI GAMBAR SKETSA (VERSI ANTI-NGAWUR) ---
 document.getElementById('searchBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
     const gallery = document.getElementById('imageGallery');
     
     if (!scriptText) return alert("Isi skripnya dulu ya!");
 
-    document.getElementById('searchBtn').innerText = "AI sedang berpikir...";
-    gallery.innerHTML = "<p>Sedang meracik kata kunci dan mencari sketsa transparan...</p>";
+    document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
+    gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
 
-    // PERBAIKAN 1: Memaksa AI hanya mengambil "Kata Benda" (Bukan kata kerja)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
-    const prompt = `Bacalah skrip berikut: "${scriptText}". Ekstrak maksimal 3 KATA BENDA (objek/hewan/orang) yang paling menonjol. JANGAN gunakan kata kerja. Berikan output HANYA array JSON teks polos dalam BAHASA INGGRIS, contoh: ["cat", "milk", "table"]`;
+    // PERBAIKAN 1: Gunakan jalur resmi 'v1' dan model 'gemini-1.5-flash' yang dijamin stabil
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY.trim()}`;
+    const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2 }}) // Temperature diturunkan agar AI lebih logis
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: prompt }] }], 
+                generationConfig: { temperature: 0.1 } // Suhu diturunkan drastis agar AI tidak berhalusinasi
+            })
         });
 
         const data = await response.json();
-        let keywords = ["cat", "milk", "table"]; 
 
-        if (response.ok) {
-            const responTeks = data.candidates[0].content.parts[0].text.trim();
-            keywords = JSON.parse(responTeks.replace(/```json|```/g, ''));
+        // PERBAIKAN 2: Jika Google menolak, beritahu errornya, JANGAN pakai kata kunci palsu!
+        if (!response.ok) {
+            console.error("Error Google API:", data);
+            throw new Error(`AI Google Gagal: ${data.error?.message || 'Koneksi Ditolak'}`);
         }
+
+        const responTeks = data.candidates[0].content.parts[0].text.trim();
+        // Memaksa mencari format array dari teks campuran
+        const jsonMatch = responTeks.match(/\[(.*?)\]/);
+        if (!jsonMatch) throw new Error("AI tidak memberikan format JSON yang benar.");
+        
+        const keywords = JSON.parse(jsonMatch[0]);
 
         gallery.innerHTML = ""; 
 
+        // PERBAIKAN 3: Strategi Pencarian Pixabay yang Baru
         for (let keyword of keywords) {
-            // PERBAIKAN 2: Kata kunci pencarian diubah ke "outline clipart" agar bergaris dan transparan
-            const searchQuery = encodeURIComponent(keyword + " outline clipart");
+            // Cukup tambahkan kata "sketch" atau "drawing" agar Pixabay tidak bingung
+            const searchQuery = encodeURIComponent(keyword + " sketch");
             
-            // PERBAIKAN 3: Ubah image_type menjadi vector dan hapus colors=black yang bikin error background gelap
+            // Hapus filter warna yang bikin error, cukup filter tipe gambar ke vector
             const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=vector&per_page=5`;
             
             const res = await fetch(pixabayUrl);
@@ -59,9 +70,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                     imgEl.style.width = "80px";
                     imgEl.style.height = "80px";
                     imgEl.style.objectFit = "contain";
-                    
-                    // Tambahkan background putih semu agar jika gambar dari Pixabay transparan, tetap terlihat jelas di layar
-                    imgEl.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
+                    imgEl.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
                     
                     imgEl.onclick = () => pilihGambar(hit.webformatURL);
                     barisObjek.appendChild(imgEl);
@@ -69,12 +78,13 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                 
                 gallery.appendChild(barisObjek);
             } else {
-                gallery.innerHTML += `<p style="color:red;">Sketsa untuk "${keyword}" tidak ditemukan. Coba unggah manual.</p>`;
+                // Jika masih tidak ketemu (misal kata yang aneh), minta user unggah sendiri
+                gallery.innerHTML += `<div style="margin-bottom:15px; color:red;">Sketsa untuk "${keyword}" tidak ditemukan di Pixabay. Silakan unggah manual.</div>`;
             }
         }
         document.getElementById('searchBtn').innerText = "Selesai! Silakan pilih gambarnya";
     } catch (error) {
-        gallery.innerHTML = "Gagal menghubungi API Pixabay.";
+        gallery.innerHTML = `<p style="color:red; font-weight:bold;">Terdapat Kesalahan: ${error.message}</p>`;
         document.getElementById('searchBtn').innerText = "Menganalisis Skrip & Cari Gambar";
         console.error(error);
     }
