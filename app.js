@@ -134,6 +134,32 @@ document.getElementById('recordBtn').addEventListener('click', async () => {
     document.getElementById('downloadBtn').style.display = "inline-block";
 });
 
+// Fungsi pintar untuk mengatur ukuran & posisi gambar secara otomatis
+function getLayout(index, totalImages) {
+    const canvasW = 640;
+    const canvasH = 360;
+    let w, h, x, y;
+
+    if (totalImages === 1) {
+        w = 280; h = 280;
+        x = (canvasW - w) / 2;
+    } else if (totalImages === 2) {
+        w = 200; h = 200;
+        let gap = 50; 
+        let totalArea = (w * 2) + gap;
+        let startX = (canvasW - totalArea) / 2;
+        x = startX + (index * (w + gap));
+    } else { 
+        w = 150; h = 150;
+        let gap = 30;
+        let totalArea = (w * 3) + (gap * 2);
+        let startX = (canvasW - totalArea) / 2;
+        x = startX + (index * (w + gap));
+    }
+    y = (canvasH - h) / 2;
+    return { x, y, width: w, height: h };
+}
+
 // --- FUNGSI REKAMAN V3 (DENGAN ANIMASI TANGAN & MASKING) ---
 function mulaiAnimasiDanRekam(daftarGambar) {
     return new Promise((resolve) => {
@@ -181,61 +207,55 @@ if (src.startsWith('data:')) {
             mediaRecorder.start();
             let frame = 0;
 
-            function drawLoop() {
-                ctx.fillStyle = "#fff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height); 
+           function drawLoop() {
+            let totalGambar = loadedImages.length; 
+            let currentImageIndex = Math.floor(frame / 180);
+            let currentFrame = frame % 180;
+            
+            // Bersihkan kanvas setiap frame
+            ctx.fillStyle = "#fff"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Logika Waktu: Tiap gambar diberi durasi 180 frame (3 detik)
-                let currentImageIndex = Math.floor(frame / 180);
-                let currentFrame = frame % 180; 
-
-                // A. Tampilkan penuh gambar yang SUDAH selesai digambar
-                for (let i = 0; i < currentImageIndex; i++) {
-                    if (loadedImages[i]) {
-                        ctx.drawImage(loadedImages[i], 50 + (i * 180), 100, 150, 150);
-                    }
-                }
-
-                // B. Animasikan gambar yang SEDANG digambar saat ini
-                if (currentImageIndex < loadedImages.length && loadedImages[currentImageIndex]) {
-                    // GANTI MENJADI SEPERTI INI (140 frame untuk menggambar, 40 frame jeda santai):
-                    let progress = currentFrame / 140; 
-                    if (progress > 1) progress = 1;
-
-                    let xPos = 50 + (currentImageIndex * 180);
-                    let yPos = 100;
-                    let size = 150;
-
-                    // Trik Masking (Clip): Memunculkan area gambar secara perlahan dari kiri
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(xPos, yPos, size * progress, size);
-                    ctx.clip();
-                    ctx.drawImage(loadedImages[currentImageIndex], xPos, yPos, size, size);
-                    ctx.restore();
-
-                    // Trik Gerakan Tangan: Munculkan tangan jika gambar belum selesai 100%
-                    if (progress < 1 && handImg.complete && handImg.naturalWidth !== 0) {
-                        // GANTI MENJADI SEPERTI INI (Ubah angka 15 yang di tengah menjadi 30):
-                        let zigzagY = Math.sin(progress * Math.PI * 30) * 15;
-                        
-                        let handX = xPos + (size * progress) - 20; // Posisi sumbu X maju ke kanan
-                        let handY = yPos + (size / 2) + zigzagY;   // Posisi sumbu Y mengarsir
-                        
-                        // Gambar tangan (ukuran 100x100, sesuaikan jika kekecilan/kebesaran)
-                        ctx.drawImage(handImg, handX, handY, 100, 100);
-                    }
-                }
-
-                frame++;
-                
-                // Berhenti merekam jika semua gambar di antrean sudah selesai
-                if (currentImageIndex >= loadedImages.length) {
-                    mediaRecorder.stop();
-                } else {
-                    requestAnimationFrame(drawLoop); // Lanjut ke frame berikutnya
+            // 1. Tampilkan penuh gambar yang SUDAH SELESAI digambar
+            for (let i = 0; i < currentImageIndex; i++) {
+                if (i < totalGambar) {
+                    let layout = getLayout(i, totalGambar);
+                    ctx.drawImage(loadedImages[i], layout.x, layout.y, layout.width, layout.height);
                 }
             }
+
+            // 2. Efek Goresan (Menggambar dari 0 ke 100%) untuk gambar SAAT INI
+            if (currentImageIndex < totalGambar) {
+                let progress = Math.min(currentFrame / 140, 1); 
+                let layout = getLayout(currentImageIndex, totalGambar);
+                
+                // Efek Masking/Kliping
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(layout.x, layout.y, layout.width * progress, layout.height); 
+                ctx.clip(); 
+                ctx.drawImage(loadedImages[currentImageIndex], layout.x, layout.y, layout.width, layout.height);
+                ctx.restore(); 
+
+                // 3. Gerakan Tangan Mengikuti Garis Potong
+                if (progress < 1 && handImg.complete && handImg.naturalWidth !== 0) {
+                    let handX = layout.x + (layout.width * progress);
+                    let zigzagY = Math.sin(progress * Math.PI * 30) * 15;
+                    let handY = layout.y + (layout.height / 2) + zigzagY;
+
+                    ctx.drawImage(handImg, handX, handY - 30, 100, 100); 
+                }
+            }
+
+            frame++;
+
+            // Berhenti merekam jika semua gambar selesai
+            if (currentImageIndex >= totalGambar) {
+                mediaRecorder.stop();
+            } else {
+                requestAnimationFrame(drawLoop);
+            }
+        }
             drawLoop();
         }
     });
