@@ -24,7 +24,7 @@ const url = "https://lite.koboiilm.com/v1/chat/completions";
                 'Authorization': `Bearer ${KOBOI_API_KEY}` 
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini", 
+                model: "openai/gpt-4o-mini",
                 messages: [{ role: "user", content: prompt }],
                 temperature: 0.1
             })
