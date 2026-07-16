@@ -1,130 +1,140 @@
 const API_KEY = 'AIzaSyDFWxSABJBNIWs1jZSG2-tShoYEXgKZNgA'; 
+let arrayGambarTerpilih = []; // Tempat menyimpan gambar yang diklik user
 
-document.getElementById('generateBtn').addEventListener('click', async () => {
+// --- TOMBOL 1: MENCARI GAMBAR DARI INTERNET ---
+document.getElementById('searchBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
-    const generateBtn = document.getElementById('generateBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
+    const gallery = document.getElementById('imageGallery');
     
-    if (!scriptText) return alert("Silakan isi skrip terlebih dahulu!");
+    if (!scriptText) return alert("Isi skripnya dulu ya!");
 
-    generateBtn.disabled = true;
-    generateBtn.innerText = "Meminta petunjuk AI...";
+    document.getElementById('searchBtn').innerText = "AI sedang berpikir...";
+    gallery.innerHTML = "<p>Sedang mencari gambar di internet...</p>";
+
+    // 1. Panggil Gemini (Meminta hasil Bahasa Inggris untuk Iconify)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
+    const prompt = `Bacalah skrip berikut: "${scriptText}". Ekstrak maksimal 3 kata benda visual utama. Berikan output HANYA array JSON teks polos dalam BAHASA INGGRIS, contoh: ["cat", "milk", "table"]`;
 
     try {
-        // 1. PANGGIL API GEMINI (Mendapatkan kata kunci gambar berdasarkan skrip)
-        const keywords = await dapatkanKataKunciDariGemini(scriptText);
-        generateBtn.innerText = `AI memilih gambar: ${keywords.join(', ')}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 }})
+        });
 
-        // 2. PROSES ANIMASI DAN REKAMAN VIDEO
-        generateBtn.innerText = "Sedang Merender & Merekam Video...";
-        await mulaiAnimasiDanRekam(keywords);
+        const data = await response.json();
+        let keywords = ["cat", "drink", "table"]; // Fallback bawaan
 
-        generateBtn.innerText = "Selesai!";
-        generateBtn.disabled = false;
-        downloadBtn.style.display = "inline-block"; // Munculkan tombol download
+        if (response.ok) {
+            const responTeks = data.candidates[0].content.parts[0].text.trim();
+            keywords = JSON.parse(responTeks.replace(/```json|```/g, ''));
+        }
 
+        // 2. Cari gambar di Iconify API berdasarkan bahasa Inggris
+        gallery.innerHTML = ""; 
+        for (let keyword of keywords) {
+            const res = await fetch(`https://api.iconify.design/search?query=${keyword}&limit=4`);
+            const iconData = await res.json();
+            
+            if (iconData.icons && iconData.icons.length > 0) {
+                iconData.icons.forEach(iconName => {
+                    const [prefix, name] = iconName.split(':');
+                    const imgSrc = `https://api.iconify.design/${prefix}/${name}.svg?color=black`; // Paksa warna hitam ala whiteboard
+                    
+                    const imgEl = document.createElement('img');
+                    imgEl.src = imgSrc;
+                    imgEl.className = 'ikon-hasil';
+                    imgEl.title = `Klik untuk memilih ${keyword}`;
+                    
+                    // Logika ketika gambar diklik
+                    imgEl.onclick = () => pilihGambar(imgSrc);
+                    gallery.appendChild(imgEl);
+                });
+            }
+        }
+        document.getElementById('searchBtn').innerText = "Selesai! Silakan pilih gambarnya";
     } catch (error) {
-        console.error(error);
-        alert("Terjadi kesalahan, coba periksa konsol browser atau API Key kamu.");
-        generateBtn.disabled = false;
-        generateBtn.innerText = "Mulai Render Video";
+        gallery.innerHTML = "Gagal menghubungi internet. Coba gunakan fitur Unggah Manual.";
+        document.getElementById('searchBtn').innerText = "Menganalisis Skrip & Cari Gambar";
     }
 });
 
+// --- FITUR UPLOAD GAMBAR MANUAL ---
+document.getElementById('uploadManualBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+});
 
-// FUNGSI UPDATE TERAKHIR (Anti-Error / Universal Endpoint)
-async function dapatkanKataKunciDariGemini(skrip) {
-    // Kita gunakan model "gemini-pro" dengan URL v1beta yang paling longgar
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY.trim()}`;
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     
-    const prompt = `Bacalah skrip berikut: "${skrip}". Ekstrak maksimal 3 kata benda/objek visual yang paling mewakili skrip tersebut untuk dijadikan animasi gambar. Berikan output HANYA dalam bentuk array JSON teks polos tanpa format markdown, contoh: ["sedih", "topeng", "rumah"]`;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        pilihGambar(event.target.result); // Masukkan hasil upload ke daftar pilihan
+    };
+    reader.readAsDataURL(file);
+});
 
-    // Tambahkan pengaturan khusus di header agar tidak terblokir
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({ 
-            contents: [{ parts: [{ text: prompt }] }],
-            // Memaksa AI agar tidak terlalu kaku merespons (menghindari error internal Google)
-            generationConfig: {
-                temperature: 0.7,
-                topK: 1,
-                topP: 1
-            }
-        })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        console.error("Detail Error API:", data);
-        // Jika masih gagal, kita kembalikan kata kunci palsu (dummy) agar web tidak macet!
-        console.warn("Menggunakan fallback kata kunci karena server AI sibuk.");
-        return ["kucing", "berjalan", "cepat"]; 
+// --- LOGIKA PEMILIHAN GAMBAR ---
+function pilihGambar(imgSrc) {
+    if (arrayGambarTerpilih.length >= 3) {
+        return alert("Kamu sudah memilih 3 gambar! Klik tombol Rekam Video di bawah.");
     }
-
-    try {
-        const responTeks = data.candidates[0].content.parts[0].text.trim();
-        const cleanJson = responTeks.replace(/```json|```/g, '');
-        return JSON.parse(cleanJson);
-    } catch (e) {
-        console.error("Gagal membaca respons AI:", e);
-        return ["gambar1", "gambar2", "gambar3"]; // Fallback jika AI ngaco
+    
+    arrayGambarTerpilih.push(imgSrc);
+    document.getElementById('gambarTerpilihInfo').innerText = `Gambar Terpilih: ${arrayGambarTerpilih.length} / 3`;
+    document.getElementById('gambarTerpilihInfo').style.color = "green";
+    
+    if (arrayGambarTerpilih.length > 0) {
+        document.getElementById('recordBtn').style.display = "inline-block";
     }
 }
 
+// --- TOMBOL 2: RENDER & REKAM VIDEO (Menggunakan gambar yang dipilih) ---
+document.getElementById('recordBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('recordBtn');
+    btn.disabled = true;
+    btn.innerText = "Merekam ke Canvas... Harap Tunggu 8 Detik";
+    
+    await mulaiAnimasiDanRekam(arrayGambarTerpilih);
+    
+    btn.innerText = "Video Selesai Direkam!";
+    document.getElementById('downloadBtn').style.display = "inline-block";
+});
 
-// FUNGSI PEREKAMAN UPDATE (Tahap 2: Menampilkan Gambar Asli)
-function mulaiAnimasiDanRekam(keywords) {
+function mulaiAnimasiDanRekam(daftarGambar) {
     return new Promise((resolve) => {
         const canvas = document.getElementById('whiteboardCanvas');
         const ctx = canvas.getContext('2d');
         
-        // --- 1. PROSES PRE-LOAD GAMBAR ---
-        // Kita harus memuat (loading) gambar dari folder ke memori sebelum direkam
+        // Load semua gambar terpilih ke memori
         const loadedImages = [];
-        let imagesToLoad = keywords.length;
+        let imagesToLoad = daftarGambar.length;
 
-        keywords.forEach((keyword, index) => {
+        daftarGambar.forEach((src, index) => {
             const img = new Image();
-            img.src = `${keyword}.svg`; // Memanggil file gambar sesuai kata kunci AI
-
-            // Jika gambar berhasil ditemukan di folder
+            img.crossOrigin = "Anonymous"; // Mencegah error CORS dari Iconify
+            img.src = src;
             img.onload = () => {
                 loadedImages[index] = img;
-                imagesToLoad--;
-                if (imagesToLoad === 0) jalankanRekaman(); // Mulai rekam jika semua gambar siap
-            };
-
-            // Jika gambar tidak ada/gagal dimuat
-            img.onerror = () => {
-                console.warn(`Gambar ${keyword}.svg tidak ditemukan di folder!`);
-                loadedImages[index] = null; 
                 imagesToLoad--;
                 if (imagesToLoad === 0) jalankanRekaman();
             };
         });
 
-        // --- 2. PROSES ANIMASI & REKAM VIDEO ---
         function jalankanRekaman() {
             const stream = canvas.captureStream(30);
             const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             let chunks = [];
 
             mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-            
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunks, { type: 'video/webm' });
-                const videoURL = URL.createObjectURL(blob);
-                document.getElementById('downloadBtn').href = videoURL;
+                document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
                 resolve();
             };
 
             mediaRecorder.start();
-
             let frame = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
@@ -132,30 +142,14 @@ function mulaiAnimasiDanRekam(keywords) {
                 ctx.fillStyle = "#fff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height); 
 
-                // Format drawImage: ctx.drawImage(VariabelGambar, Posisi X, Posisi Y, Lebar, Tinggi);
-
-                // Munculkan Gambar 1 (kucing.svg) di frame 30
-                if (frame > 30 && loadedImages[0]) {
-                    ctx.drawImage(loadedImages[0], 50, 100, 150, 150); 
-                }
-                
-                // Munculkan Gambar 2 (berjalan.svg) di frame 90
-                if (frame > 90 && loadedImages[1]) {
-                    ctx.drawImage(loadedImages[1], 250, 100, 150, 150);
-                }
-                
-                // Munculkan Gambar 3 (cepat.svg) di frame 150
-                if (frame > 150 && loadedImages[2]) {
-                    ctx.drawImage(loadedImages[2], 450, 100, 150, 150);
-                }
+                // Munculkan secara berurutan
+                if (frame > 30 && loadedImages[0]) ctx.drawImage(loadedImages[0], 50, 100, 150, 150);
+                if (frame > 90 && loadedImages[1]) ctx.drawImage(loadedImages[1], 250, 100, 150, 150);
+                if (frame > 150 && loadedImages[2]) ctx.drawImage(loadedImages[2], 450, 100, 150, 150);
 
                 frame++;
-
-                if (frame < 240) { // Render selama ~8 detik
-                    requestAnimationFrame(drawLoop);
-                } else {
-                    mediaRecorder.stop();
-                }
+                if (frame < 240) { requestAnimationFrame(drawLoop); } 
+                else { mediaRecorder.stop(); }
             }
             drawLoop();
         }
