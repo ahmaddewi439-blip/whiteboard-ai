@@ -92,19 +92,21 @@ const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQu
     }
 });
 // --- FITUR UPLOAD GAMBAR MANUAL ---
-document.getElementById('uploadManualBtn').addEventListener('click', () => {
-    document.getElementById('fileInput').click();
-});
-
 document.getElementById('fileInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
-        pilihGambar(event.target.result); // Masukkan hasil upload ke daftar pilihan
+        pilihGambar(event.target.result); 
     };
-    reader.readAsDataURL(file);
+    
+    // Jika file berupa SVG, kita baca sebagai "Teks/Kode Vektor"
+    if (file.type === "image/svg+xml" || file.name.endsWith('.svg')) {
+        reader.readAsText(file);
+    } else {
+        reader.readAsDataURL(file); // Jika foto biasa (PNG/JPG)
+    }
 });
 
 // --- LOGIKA PEMILIHAN GAMBAR ---
@@ -161,104 +163,89 @@ function getLayout(index, totalImages) {
 }
 
 // --- FUNGSI REKAMAN V3 (DENGAN ANIMASI TANGAN & MASKING) ---
+// --- FUNGSI REKAMAN V4 (MESIN VEKTOR VIVUS) ---
 function mulaiAnimasiDanRekam(daftarGambar) {
     return new Promise((resolve) => {
         const canvas = document.getElementById('whiteboardCanvas');
         const ctx = canvas.getContext('2d');
-        
-        // 1. Pre-load Gambar Tangan Pensil
-        const handImg = new Image();
-        handImg.src = 'tangan-pensil.png'; // Pastikan file ini ada di foldermu!
-        
-        // 2. Pre-load Gambar Hasil Pencarian
-        const loadedImages = [];
-        let imagesToLoad = daftarGambar.length;
+        const svgLayer = document.getElementById('svgLayer');
 
-        daftarGambar.forEach((src, index) => {
-            const img = new Image();
-            img.crossOrigin = "Anonymous";
-            // GANTI MENJADI SEPERTI INI:
-if (src.startsWith('data:')) {
-    // Jika ini adalah gambar upload manual dari PC/HP, jangan pakai proxy
-    img.src = src;
-} else {
-    // Jika ini adalah gambar link dari Pixabay, tembus pakai proxy
-    img.src = `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`;
-}
-            img.onload = () => {
-                loadedImages[index] = img;
-                imagesToLoad--;
-                if (imagesToLoad === 0) jalankanRekaman();
-            };
+        // Bersihkan kanvas & layer
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        svgLayer.innerHTML = "";
+
+        // Untuk uji coba tahap awal, kita fokus pada 1 gambar SVG pertama
+        const svgData = daftarGambar[0];
+
+        // Masukkan kode SVG ke dalam lapisan kaca transparan
+        svgLayer.innerHTML = svgData;
+
+        // Cari elemen SVG-nya dan atur ukurannya agar pas di tengah kanvas
+        const svgElement = svgLayer.querySelector('svg');
+        if (svgElement) {
+            svgElement.style.width = "280px";
+            svgElement.style.height = "280px";
+            svgElement.style.position = "absolute";
+            svgElement.style.left = "180px"; // Posisi sumbu X tengah
+            svgElement.style.top = "40px";   // Posisi sumbu Y tengah
+
+            // Hapus warna bawaan file agar murni menjadi garis hitam (Outline)
+            const paths = svgElement.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse');
+            paths.forEach(p => {
+                p.setAttribute('stroke', '#000');
+                p.setAttribute('stroke-width', '2');
+                p.setAttribute('fill', 'none');
+            });
+        }
+
+        // Siapkan Perekam Video Kanvas
+        const stream = canvas.captureStream(30);
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        let chunks = [];
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
+            resolve();
+        };
+
+        mediaRecorder.start();
+
+        // 1. JALANKAN ANIMASI GARIS (VIVUS)
+        new Vivus(svgElement, {
+            type: 'oneByOne', // Menggambar garis per garis secara berurutan
+            duration: 200,    // Durasi total animasi
+            animTimingFunction: Vivus.EASE
+        }, function () {
+            // Saat animasi vektor selesai, hentikan rekaman
+            setTimeout(() => {
+                mediaRecorder.stop();
+            }, 1000); 
         });
 
-        function jalankanRekaman() {
-            const stream = canvas.captureStream(30);
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-            let chunks = [];
+        // 2. SINKRONISASI LAYER KE KANVAS (Agar bisa terekam di video)
+        function syncToCanvas() {
+            if (mediaRecorder.state === "recording") {
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'video/webm' });
-                document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
-                resolve();
-            };
+                // Ubah wujud pergerakan SVG menjadi gambar yang ditangkap frame Kanvas
+                const svgString = new XMLSerializer().serializeToString(svgElement);
+                const DOMURL = self.URL || self.webkitURL || self;
+                const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+                const url = DOMURL.createObjectURL(svgBlob);
 
-            mediaRecorder.start();
-            let frame = 0;
+                const img = new Image();
+                img.onload = function () {
+                    ctx.drawImage(img, 180, 40, 280, 280);
+                    DOMURL.revokeObjectURL(url);
+                };
+                img.src = url;
 
-           function drawLoop() {
-            let totalGambar = loadedImages.length; 
-            let currentImageIndex = Math.floor(frame / 180);
-            let currentFrame = frame % 180;
-            
-            // Bersihkan kanvas setiap frame
-            ctx.fillStyle = "#fff"; 
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Tampilkan penuh gambar yang SUDAH SELESAI digambar
-            for (let i = 0; i < currentImageIndex; i++) {
-                if (i < totalGambar) {
-                    let layout = getLayout(i, totalGambar);
-                    ctx.drawImage(loadedImages[i], layout.x, layout.y, layout.width, layout.height);
-                }
-            }
-
-            // 2. Efek Goresan (Menggambar dari 0 ke 100%) untuk gambar SAAT INI
-            if (currentImageIndex < totalGambar) {
-                let progress = Math.min(currentFrame / 140, 1); 
-                let layout = getLayout(currentImageIndex, totalGambar);
-                
-                // Efek Masking/Kliping
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(layout.x, layout.y, layout.width * progress, layout.height); 
-                ctx.clip(); 
-                ctx.drawImage(loadedImages[currentImageIndex], layout.x, layout.y, layout.width, layout.height);
-                ctx.restore(); 
-
-                // 3. Gerakan Tangan Mengikuti Garis Potong
-                if (progress < 1 && handImg.complete && handImg.naturalWidth !== 0) {
-                    let handX = layout.x + (layout.width * progress);
-                    let zigzagY = Math.sin(progress * Math.PI * 30) * 15;
-                    let handY = layout.y + (layout.height / 2) + zigzagY;
-
-                    // Kamu bisa mengubah angka -30 ini untuk menaikkan/menurunkan posisi ujung pensil
-                    // Dan kamu bisa menambahkan pengurangan di handX untuk memajukan/memundurkannya
-                    ctx.drawImage(handImg, handX - 20, handY - 30, 100, 100);
-                }
-            }
-
-            frame++;
-
-            // Berhenti merekam jika semua gambar selesai
-            if (currentImageIndex >= totalGambar) {
-                mediaRecorder.stop();
-            } else {
-                requestAnimationFrame(drawLoop);
+                requestAnimationFrame(syncToCanvas);
             }
         }
-            drawLoop();
-        }
+        syncToCanvas();
     });
 }
