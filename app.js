@@ -92,6 +92,10 @@ const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQu
     }
 });
 // --- FITUR UPLOAD GAMBAR MANUAL ---
+document.getElementById('uploadManualBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+});
+
 document.getElementById('fileInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -107,6 +111,9 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
     } else {
         reader.readAsDataURL(file); // Jika foto biasa (PNG/JPG)
     }
+    
+    // Reset input agar bisa memilih file yang sama lagi jika terjadi error
+    e.target.value = ''; 
 });
 
 // --- LOGIKA PEMILIHAN GAMBAR ---
