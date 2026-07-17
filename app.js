@@ -168,8 +168,7 @@ function getLayout(index, totalImages) {
     return { x, y, width: w, height: h };
 }
 
-// --- FUNGSI REKAMAN V4 (MESIN VEKTOR VIVUS - ANTI BLANK) ---
-// --- FUNGSI REKAMAN V5 (MESIN VEKTOR BANYAK GAMBAR) ---
+// --- FUNGSI REKAMAN V6 (MESIN KOMPOSISI SATU KANVAS) ---
 async function mulaiAnimasiDanRekam(daftarGambar) {
     if (typeof Vivus === 'undefined') {
         alert("Library Vivus tidak ditemukan!");
@@ -180,7 +179,24 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
     const ctx = canvas.getContext('2d');
     const svgLayer = document.getElementById('svgLayer');
 
-    // Mulai Perekam Video
+    // 1. BERSIHKAN KANVAS HANYA 1 KALI DI AWAL
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    svgLayer.innerHTML = "";
+
+    // 2. LOGIKA LAYOUT: Titik koordinat agar gambar tidak saling tumpuk
+    const layout = [
+        { left: "50px", top: "80px", size: "220px" },   // Gambar 1: Kiri
+        { left: "350px", top: "80px", size: "220px" },  // Gambar 2: Kanan
+        { left: "200px", top: "180px", size: "180px" }  // Gambar 3: Tengah Bawah
+    ];
+
+    // 3. LOGIKA WAKTU (TARGET 10 DETIK TOTAL)
+    // Vivus menggunakan frame (bukan milidetik). 10 detik = ~600 frame total.
+    const totalFrame = 600; 
+    const framePerGambar = Math.floor(totalFrame / daftarGambar.length);
+
+    // Mulai Rekaman
     const stream = canvas.captureStream(30);
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
     let chunks = [];
@@ -196,48 +212,40 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
 
     mediaRecorder.start();
 
-    // LOGIKA BARU: Loop antrean untuk menggambar semua gambar satu per satu
+    // 4. GAMBAR SATU PER SATU TANPA MENGHAPUS KANVAS
     for (let i = 0; i < daftarGambar.length; i++) {
-        await prosesSatuGambarSVG(daftarGambar[i], canvas, ctx, svgLayer);
+        const posisi = layout[i % layout.length];
+        await prosesSatuGambarSVG(daftarGambar[i], canvas, ctx, svgLayer, posisi, framePerGambar);
     }
 
-    // Berhenti merekam setelah seluruh antrean gambar selesai diproses
-    setTimeout(() => {
-        mediaRecorder.stop();
-    }, 1000);
+    // Berhenti merekam 1 detik setelah semuanya selesai
+    setTimeout(() => { mediaRecorder.stop(); }, 1000);
 
     return janjiRekaman;
 }
 
-// FUNGSI BANTUAN: Memproses 1 gambar sampai tuntas, lalu memberi aba-aba lanjut
-function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer) {
+// FUNGSI BANTUAN: Memproses 1 gambar dan menempelkannya ke kanvas permanen
+function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame) {
     return new Promise((resolve) => {
-        // Bersihkan layar dari gambar sebelumnya
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        svgLayer.innerHTML = "";
+        if (svgData.startsWith('data:')) return resolve();
 
-        if (svgData.startsWith('data:')) {
-            console.warn("Bukan SVG murni, gambar ini dilewati.");
-            return resolve();
-        }
-
-        svgLayer.innerHTML = svgData;
-        const svgElement = svgLayer.querySelector('svg');
-        
+        // Buat elemen SVG baru dan Tumpuk (Jangan hapus yang lama)
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = svgData;
+        const svgElement = wrapper.querySelector('svg');
         if (!svgElement) return resolve();
 
         if (!svgElement.getAttribute('xmlns')) {
             svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         }
 
-        svgElement.style.width = "280px";
-        svgElement.style.height = "280px";
+        // Atur posisi sesuai layout AI
+        svgElement.style.width = posisi.size;
+        svgElement.style.height = posisi.size;
         svgElement.style.position = "absolute";
-        svgElement.style.left = "180px"; 
-        svgElement.style.top = "40px";
+        svgElement.style.left = posisi.left; 
+        svgElement.style.top = posisi.top;
 
-        // Normalisasi Ketebalan Garis
         const paths = svgElement.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse');
         paths.forEach(p => {
             p.setAttribute('stroke', '#000');
@@ -246,28 +254,27 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer) {
             p.style.vectorEffect = "non-scaling-stroke";
         });
 
+        // Masukkan ke layar kaca
+        svgLayer.appendChild(svgElement);
+
         let isSyncing = true;
 
-        // 1. Eksekusi Animasi Garis (Vivus)
+        // Eksekusi Animasi lambat
         new Vivus(svgElement, {
             type: 'oneByOne', 
-            duration: 150,    
+            duration: durasiFrame,    
             animTimingFunction: Vivus.EASE
         }, function () {
-            // Setelah gambar selesai dibuat, tunggu 1.5 detik agar penonton bisa melihat hasilnya, baru lanjut ke gambar berikutnya
             setTimeout(() => {
-                isSyncing = false; // Hentikan fotokopi kanvas
-                resolve(); // Kirim sinyal "Lanjut Gambar Berikutnya!"
-            }, 1500); 
+                isSyncing = false; 
+                resolve(); 
+            }, 500); // Jeda setengah detik sebelum gambar selanjutnya
         });
 
-        // 2. Sinkronisasi (Fotokopi) ke Kanvas agar masuk ke Video
+        // Sinkronisasi Kanvas (Hanya menggambar, tidak menghapus)
         function syncToCanvas() {
             if (!isSyncing) return; 
             
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             const svgString = new XMLSerializer().serializeToString(svgElement);
             const DOMURL = self.URL || self.webkitURL || self;
             const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
@@ -275,7 +282,11 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer) {
 
             const img = new Image();
             img.onload = function () {
-                ctx.drawImage(img, 180, 40, 280, 280);
+                const x = parseInt(posisi.left);
+                const y = parseInt(posisi.top);
+                const s = parseInt(posisi.size);
+                // Gambar langsung ditimpa ke kanvas (seperti stempel)
+                ctx.drawImage(img, x, y, s, s);
                 DOMURL.revokeObjectURL(url); 
             };
             img.src = url;
