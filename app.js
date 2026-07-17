@@ -169,42 +169,64 @@ function getLayout(index, totalImages) {
 }
 
 // --- FUNGSI REKAMAN V4 (MESIN VEKTOR VIVUS - ANTI BLANK) ---
-function mulaiAnimasiDanRekam(daftarGambar) {
+// --- FUNGSI REKAMAN V5 (MESIN VEKTOR BANYAK GAMBAR) ---
+async function mulaiAnimasiDanRekam(daftarGambar) {
+    if (typeof Vivus === 'undefined') {
+        alert("Library Vivus tidak ditemukan!");
+        return;
+    }
+
+    const canvas = document.getElementById('whiteboardCanvas');
+    const ctx = canvas.getContext('2d');
+    const svgLayer = document.getElementById('svgLayer');
+
+    // Mulai Perekam Video
+    const stream = canvas.captureStream(30);
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    let chunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    
+    const janjiRekaman = new Promise((resolve) => {
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
+            resolve();
+        };
+    });
+
+    mediaRecorder.start();
+
+    // LOGIKA BARU: Loop antrean untuk menggambar semua gambar satu per satu
+    for (let i = 0; i < daftarGambar.length; i++) {
+        await prosesSatuGambarSVG(daftarGambar[i], canvas, ctx, svgLayer);
+    }
+
+    // Berhenti merekam setelah seluruh antrean gambar selesai diproses
+    setTimeout(() => {
+        mediaRecorder.stop();
+    }, 1000);
+
+    return janjiRekaman;
+}
+
+// FUNGSI BANTUAN: Memproses 1 gambar sampai tuntas, lalu memberi aba-aba lanjut
+function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer) {
     return new Promise((resolve) => {
-        // Peringatan jika script Vivus di index.html belum terpasang atau gagal dimuat
-        if (typeof Vivus === 'undefined') {
-            alert("Sistem Animasi Gagal: Library Vivus tidak ditemukan! Pastikan kodenya sudah diletakkan di index.html");
-            return resolve();
-        }
-
-        const canvas = document.getElementById('whiteboardCanvas');
-        const ctx = canvas.getContext('2d');
-        const svgLayer = document.getElementById('svgLayer');
-
-        // Bersihkan kanvas
+        // Bersihkan layar dari gambar sebelumnya
         ctx.fillStyle = "#fff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         svgLayer.innerHTML = "";
 
-        const svgData = daftarGambar[0];
-
-        // Mencegah file terbaca sebagai gambar biasa (Base64)
         if (svgData.startsWith('data:')) {
-            alert("Error: File Anda terbaca sebagai gambar piksel biasa, bukan SVG/Vektor murni.");
+            console.warn("Bukan SVG murni, gambar ini dilewati.");
             return resolve();
         }
 
-        // Tanamkan teks SVG ke dalam layar transparan
         svgLayer.innerHTML = svgData;
         const svgElement = svgLayer.querySelector('svg');
+        
+        if (!svgElement) return resolve();
 
-        if (!svgElement) {
-            alert("Error: File SVG kosong atau formatnya rusak.");
-            return resolve();
-        }
-
-        // --- INI OBAT ANTI-BLANK KANVAS ---
-        // Wajib memberikan "Paspor" xmlns agar Kanvas mau membaca SVG ini
         if (!svgElement.getAttribute('xmlns')) {
             svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         }
@@ -213,63 +235,52 @@ function mulaiAnimasiDanRekam(daftarGambar) {
         svgElement.style.height = "280px";
         svgElement.style.position = "absolute";
         svgElement.style.left = "180px"; 
-        svgElement.style.top = "40px";   
+        svgElement.style.top = "40px";
 
-        // Paksa semua garis agar berwarna hitam dan ukurannya stabil
+        // Normalisasi Ketebalan Garis
         const paths = svgElement.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse');
         paths.forEach(p => {
             p.setAttribute('stroke', '#000');
             p.setAttribute('fill', 'none');
-            // Menstabilkan ketebalan garis (Vector Effect) agar tidak setipis rambut
             p.style.strokeWidth = "3px";
             p.style.vectorEffect = "non-scaling-stroke";
         });
 
-        // Mulai Perekam Video
-        const stream = canvas.captureStream(30);
-        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        let chunks = [];
-        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/webm' });
-            document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
-            resolve();
-        };
+        let isSyncing = true;
 
-        mediaRecorder.start();
-
-        // 1. Eksekusi Animasi Garis
+        // 1. Eksekusi Animasi Garis (Vivus)
         new Vivus(svgElement, {
             type: 'oneByOne', 
-            duration: 200,    
+            duration: 150,    
             animTimingFunction: Vivus.EASE
         }, function () {
-            // Berhenti merekam 1 detik setelah gambar selesai ditarik
+            // Setelah gambar selesai dibuat, tunggu 1.5 detik agar penonton bisa melihat hasilnya, baru lanjut ke gambar berikutnya
             setTimeout(() => {
-                mediaRecorder.stop();
-            }, 1000); 
+                isSyncing = false; // Hentikan fotokopi kanvas
+                resolve(); // Kirim sinyal "Lanjut Gambar Berikutnya!"
+            }, 1500); 
         });
 
-        // 2. Sinkronisasi (Fotokopi) SVG yang bergerak ke dalam Kanvas Perekam
+        // 2. Sinkronisasi (Fotokopi) ke Kanvas agar masuk ke Video
         function syncToCanvas() {
-            if (mediaRecorder.state === "recording") {
-                ctx.fillStyle = "#fff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (!isSyncing) return; 
+            
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                const svgString = new XMLSerializer().serializeToString(svgElement);
-                const DOMURL = self.URL || self.webkitURL || self;
-                const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-                const url = DOMURL.createObjectURL(svgBlob);
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+            const DOMURL = self.URL || self.webkitURL || self;
+            const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+            const url = DOMURL.createObjectURL(svgBlob);
 
-                const img = new Image();
-                img.onload = function () {
-                    ctx.drawImage(img, 180, 40, 280, 280);
-                    DOMURL.revokeObjectURL(url); // Hapus memori sementara
-                };
-                img.src = url;
+            const img = new Image();
+            img.onload = function () {
+                ctx.drawImage(img, 180, 40, 280, 280);
+                DOMURL.revokeObjectURL(url); 
+            };
+            img.src = url;
 
-                requestAnimationFrame(syncToCanvas);
-            }
+            requestAnimationFrame(syncToCanvas);
         }
         syncToCanvas();
     });
