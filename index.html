@@ -44,9 +44,13 @@
     <!-- Tombol Rekam (Muncul setelah gambar dipilih) -->
     <button id="recordBtn" class="btn-success">Mulai Render Video & Rekam!</button>
 
-    <div id="canvasContainer">
-        <canvas id="whiteboardCanvas" width="640" height="360"></canvas>
-    </div>
+   <div id="canvasContainer" style="position: relative; width: 640px; height: 360px; margin: 0 auto;">
+    <!-- Ini kanvas asli untuk rekam video dan gambar pensil -->
+    <canvas id="whiteboardCanvas" width="640" height="360" style="position: absolute; top: 0; left: 0; z-index: 1;"></canvas>
+    
+    <!-- Ini lapisan kaca transparan tempat garis vektor SVG akan dirender (digambar) -->
+    <div id="svgLayer" style="position: absolute; top: 0; left: 0; width: 640px; height: 360px; z-index: 2; pointer-events: none;"></div>
+</div>
 
     <div style="text-align: center; margin-top: 15px;">
     <a id="downloadBtn" download="hasil-whiteboard.webm" style="display: none; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-family: sans-serif; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -54,6 +58,11 @@
     </a>
 </div>
 
+   
+    <!-- Wajib di atas! Ini adalah mesin Vivus-nya -->
+    <script src="https://cdn.jsdelivr.net/npm/vivus@latest/dist/vivus.min.js"></script>
+    
+    <!-- Wajib di bawah Vivus! Ini adalah file otak utama kamu -->
     <script src="app.js"></script>
 </body>
 </html>
