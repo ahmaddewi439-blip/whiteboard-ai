@@ -105,14 +105,13 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
         pilihGambar(event.target.result); 
     };
     
-    // Jika file berupa SVG, kita baca sebagai "Teks/Kode Vektor"
-    if (file.type === "image/svg+xml" || file.name.endsWith('.svg')) {
+    // PERBAIKAN: Deteksi SVG yang lebih kebal dan toleran
+    if (file.type.includes("svg") || file.name.toLowerCase().endsWith('.svg')) {
         reader.readAsText(file);
     } else {
-        reader.readAsDataURL(file); // Jika foto biasa (PNG/JPG)
+        reader.readAsDataURL(file); 
     }
     
-    // Reset input agar bisa memilih file yang sama lagi jika terjadi error
     e.target.value = ''; 
 });
 
@@ -169,44 +168,64 @@ function getLayout(index, totalImages) {
     return { x, y, width: w, height: h };
 }
 
-// --- FUNGSI REKAMAN V3 (DENGAN ANIMASI TANGAN & MASKING) ---
-// --- FUNGSI REKAMAN V4 (MESIN VEKTOR VIVUS) ---
+// --- FUNGSI REKAMAN V4 (MESIN VEKTOR VIVUS - ANTI BLANK) ---
 function mulaiAnimasiDanRekam(daftarGambar) {
     return new Promise((resolve) => {
+        // Peringatan jika script Vivus di index.html belum terpasang atau gagal dimuat
+        if (typeof Vivus === 'undefined') {
+            alert("Sistem Animasi Gagal: Library Vivus tidak ditemukan! Pastikan kodenya sudah diletakkan di index.html");
+            return resolve();
+        }
+
         const canvas = document.getElementById('whiteboardCanvas');
         const ctx = canvas.getContext('2d');
         const svgLayer = document.getElementById('svgLayer');
 
-        // Bersihkan kanvas & layer
+        // Bersihkan kanvas
         ctx.fillStyle = "#fff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         svgLayer.innerHTML = "";
 
-        // Untuk uji coba tahap awal, kita fokus pada 1 gambar SVG pertama
         const svgData = daftarGambar[0];
 
-        // Masukkan kode SVG ke dalam lapisan kaca transparan
-        svgLayer.innerHTML = svgData;
-
-        // Cari elemen SVG-nya dan atur ukurannya agar pas di tengah kanvas
-        const svgElement = svgLayer.querySelector('svg');
-        if (svgElement) {
-            svgElement.style.width = "280px";
-            svgElement.style.height = "280px";
-            svgElement.style.position = "absolute";
-            svgElement.style.left = "180px"; // Posisi sumbu X tengah
-            svgElement.style.top = "40px";   // Posisi sumbu Y tengah
-
-            // Hapus warna bawaan file agar murni menjadi garis hitam (Outline)
-            const paths = svgElement.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse');
-            paths.forEach(p => {
-                p.setAttribute('stroke', '#000');
-                p.setAttribute('stroke-width', '2');
-                p.setAttribute('fill', 'none');
-            });
+        // Mencegah file terbaca sebagai gambar biasa (Base64)
+        if (svgData.startsWith('data:')) {
+            alert("Error: File Anda terbaca sebagai gambar piksel biasa, bukan SVG/Vektor murni.");
+            return resolve();
         }
 
-        // Siapkan Perekam Video Kanvas
+        // Tanamkan teks SVG ke dalam layar transparan
+        svgLayer.innerHTML = svgData;
+        const svgElement = svgLayer.querySelector('svg');
+
+        if (!svgElement) {
+            alert("Error: File SVG kosong atau formatnya rusak.");
+            return resolve();
+        }
+
+        // --- INI OBAT ANTI-BLANK KANVAS ---
+        // Wajib memberikan "Paspor" xmlns agar Kanvas mau membaca SVG ini
+        if (!svgElement.getAttribute('xmlns')) {
+            svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        }
+
+        svgElement.style.width = "280px";
+        svgElement.style.height = "280px";
+        svgElement.style.position = "absolute";
+        svgElement.style.left = "180px"; 
+        svgElement.style.top = "40px";   
+
+        // Paksa semua garis agar berwarna hitam dan ukurannya stabil
+        const paths = svgElement.querySelectorAll('path, line, polyline, polygon, rect, circle, ellipse');
+        paths.forEach(p => {
+            p.setAttribute('stroke', '#000');
+            p.setAttribute('fill', 'none');
+            // Menstabilkan ketebalan garis (Vector Effect) agar tidak setipis rambut
+            p.style.strokeWidth = "3px";
+            p.style.vectorEffect = "non-scaling-stroke";
+        });
+
+        // Mulai Perekam Video
         const stream = canvas.captureStream(30);
         const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         let chunks = [];
@@ -219,25 +238,24 @@ function mulaiAnimasiDanRekam(daftarGambar) {
 
         mediaRecorder.start();
 
-        // 1. JALANKAN ANIMASI GARIS (VIVUS)
+        // 1. Eksekusi Animasi Garis
         new Vivus(svgElement, {
-            type: 'oneByOne', // Menggambar garis per garis secara berurutan
-            duration: 200,    // Durasi total animasi
+            type: 'oneByOne', 
+            duration: 200,    
             animTimingFunction: Vivus.EASE
         }, function () {
-            // Saat animasi vektor selesai, hentikan rekaman
+            // Berhenti merekam 1 detik setelah gambar selesai ditarik
             setTimeout(() => {
                 mediaRecorder.stop();
             }, 1000); 
         });
 
-        // 2. SINKRONISASI LAYER KE KANVAS (Agar bisa terekam di video)
+        // 2. Sinkronisasi (Fotokopi) SVG yang bergerak ke dalam Kanvas Perekam
         function syncToCanvas() {
             if (mediaRecorder.state === "recording") {
                 ctx.fillStyle = "#fff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Ubah wujud pergerakan SVG menjadi gambar yang ditangkap frame Kanvas
                 const svgString = new XMLSerializer().serializeToString(svgElement);
                 const DOMURL = self.URL || self.webkitURL || self;
                 const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
@@ -246,7 +264,7 @@ function mulaiAnimasiDanRekam(daftarGambar) {
                 const img = new Image();
                 img.onload = function () {
                     ctx.drawImage(img, 180, 40, 280, 280);
-                    DOMURL.revokeObjectURL(url);
+                    DOMURL.revokeObjectURL(url); // Hapus memori sementara
                 };
                 img.src = url;
 
