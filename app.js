@@ -1,9 +1,8 @@
 const KOBOI_API_KEY = 'sk-yYZlMG4TnNb2curlh9fwfg'; // berawalan sk-...
-const PIXABAY_API_KEY = '56717181-1bdaa7d9b5cb3aeec019a0d00';
-
+// Pixabay API Key sudah dihapus
 let arrayGambarTerpilih = []; 
 
-// --- TOMBOL 1: MENCARI GAMBAR SKETSA (VERSI ANTI-NGAWUR) ---
+// --- FITUR AI (KOBOI) & PENCARIAN SVG (ICONIFY) ---
 document.getElementById('searchBtn').addEventListener('click', async () => {
     const scriptText = document.getElementById('scriptInput').value;
     const gallery = document.getElementById('imageGallery');
@@ -11,13 +10,13 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     if (!scriptText) return alert("Isi skripnya dulu ya!");
 
     document.getElementById('searchBtn').innerText = "AI sedang menganalisis...";
-    gallery.innerHTML = "<p>Meminta petunjuk dari AI Google...</p>";
+    gallery.innerHTML = "<p style='color: #007bff;'>🤖 AI Koboi sedang membaca skripmu...</p>";
 
-const url = "https://lite.koboillm.com/v1/chat/completions";
-
-    const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["cat", "mouse", "cheese"]`;
+    const url = "https://lite.koboillm.com/v1/chat/completions";
+    const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["desk", "lamp", "laptop"]`;
 
     try {
+        // 1. TANYA AI KOBOI UNTUK KATA KUNCI
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -34,7 +33,6 @@ const url = "https://lite.koboillm.com/v1/chat/completions";
         const data = await response.json();
 
         if (!response.ok) {
-            console.error("Error API Koboi:", data);
             throw new Error(`AI Gagal: ${data.error?.message || 'Koneksi Ditolak'}`);
         }
 
@@ -45,43 +43,58 @@ const url = "https://lite.koboillm.com/v1/chat/completions";
         const keywords = JSON.parse(jsonMatch[0]);
         gallery.innerHTML = ""; 
 
-        // PERBAIKAN 3: Strategi Pencarian Pixabay yang Baru
+        // 2. MENCARI SVG MURNI DI ICONIFY BERDASARKAN KATA KUNCI KOBOI
         for (let keyword of keywords) {
-     
-// 1. Kita paksa Pixabay mencari "outline" (garis luar) atau "doodle" (coretan)
-const searchQuery = encodeURIComponent(keyword + " outline doodle");
-
-// 2. Kita tambahkan filter colors=grayscale agar gambarnya tidak warna-warni
-const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQuery}&image_type=vector&colors=grayscale&per_page=5`;
+            const barisObjek = document.createElement('div');
+            barisObjek.style.marginBottom = "15px";
+            barisObjek.style.paddingBottom = "10px";
+            barisObjek.style.borderBottom = "1px solid #ddd";
+            barisObjek.innerHTML = `<p style="margin: 5px 0; font-weight: bold; color: #333;">Pilih Sketsa untuk: "${keyword}"</p>`;
             
-            const res = await fetch(pixabayUrl);
-            const pixabayData = await res.json();
+            // Cari ikon garis murni
+            const iconifyUrl = `https://api.iconify.design/search?query=${keyword}+line&limit=5`;
+            const res = await fetch(iconifyUrl);
+            const iconData = await res.json();
             
-            if (pixabayData.hits && pixabayData.hits.length > 0) {
-                const barisObjek = document.createElement('div');
-                barisObjek.style.marginBottom = "15px";
-                barisObjek.style.paddingBottom = "10px";
-                barisObjek.style.borderBottom = "1px solid #ddd";
-                barisObjek.innerHTML = `<p style="margin: 5px 0; font-weight: bold; color: #333;">Pilih Sketsa untuk: "${keyword}"</p>`;
-                
-                pixabayData.hits.forEach(hit => {
-                    const imgEl = document.createElement('img');
-                    imgEl.src = hit.webformatURL; 
-                    imgEl.className = 'ikon-hasil';
-                    imgEl.title = `Klik untuk memilih ${keyword}`;
-                    imgEl.style.width = "80px";
-                    imgEl.style.height = "80px";
-                    imgEl.style.objectFit = "contain";
-                    imgEl.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
+            if (iconData.icons && iconData.icons.length > 0) {
+                iconData.icons.forEach(async (iconName) => {
+                    const [prefix, name] = iconName.split(':');
+                    const svgUrl = `https://api.iconify.design/${prefix}/${name}.svg`;
                     
-                    imgEl.onclick = () => pilihGambar(hit.webformatURL);
-                    barisObjek.appendChild(imgEl);
+                    // Tarik kode SVG murni
+                    const svgResponse = await fetch(svgUrl);
+                    const svgCode = await svgResponse.text();
+
+                    const imgWrapper = document.createElement('div');
+                    imgWrapper.style.display = "inline-block";
+                    imgWrapper.style.margin = "5px";
+                    imgWrapper.style.padding = "5px";
+                    imgWrapper.style.cursor = "pointer";
+                    imgWrapper.style.border = "2px solid #ccc";
+                    imgWrapper.style.borderRadius = "8px";
+                    imgWrapper.style.backgroundColor = "#fff";
+
+                    imgWrapper.innerHTML = svgCode;
+                    const svgTag = imgWrapper.querySelector('svg');
+                    
+                    if(svgTag) {
+                        svgTag.style.width = "60px";
+                        svgTag.style.height = "60px";
+                        svgTag.style.color = "#000";
+                    }
+
+                    imgWrapper.addEventListener('click', () => {
+                        pilihGambar(svgCode);
+                        imgWrapper.style.border = "2px solid #28a745"; 
+                        imgWrapper.style.backgroundColor = "#e9f7ef";
+                    });
+
+                    barisObjek.appendChild(imgWrapper);
                 });
                 
                 gallery.appendChild(barisObjek);
             } else {
-                // Jika masih tidak ketemu (misal kata yang aneh), minta user unggah sendiri
-                gallery.innerHTML += `<div style="margin-bottom:15px; color:red;">Sketsa untuk "${keyword}" tidak ditemukan di Pixabay. Silakan unggah manual.</div>`;
+                gallery.innerHTML += `<div style="margin-bottom:15px; color:red;">Sketsa untuk "${keyword}" tidak ditemukan. Silakan unggah manual.</div>`;
             }
         }
         document.getElementById('searchBtn').innerText = "Selesai! Silakan pilih gambarnya";
@@ -91,6 +104,23 @@ const pixabayUrl = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${searchQu
         console.error(error);
     }
 });
+
+// FUNGSI OTAK AI SEMENTARA (Kamus Pintar)
+function ekstrakKataKunci(teks) {
+    const t = teks.toLowerCase();
+    
+    if (t.includes("meja") || t.includes("kantor") || t.includes("kerja")) return "desk";
+    if (t.includes("lampu") || t.includes("terang") || t.includes("ide")) return "lamp";
+    if (t.includes("kucing") || t.includes("hewan") || t.includes("peliharaan")) return "cat";
+    if (t.includes("laptop") || t.includes("komputer")) return "laptop";
+    if (t.includes("buku") || t.includes("belajar") || t.includes("sekolah")) return "book";
+    if (t.includes("mobil") || t.includes("jalan") || t.includes("kendaraan")) return "car";
+    if (t.includes("rumah") || t.includes("keluarga")) return "house";
+    if (t.includes("pohon") || t.includes("hutan") || t.includes("alam")) return "tree";
+    if (t.includes("uang") || t.includes("gaji") || t.includes("kaya")) return "money";
+    
+    return "doodle"; // Kata kunci default jika AI kebingungan
+}
 // --- FITUR UPLOAD GAMBAR MANUAL ---
 document.getElementById('uploadManualBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
