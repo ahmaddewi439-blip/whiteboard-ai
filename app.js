@@ -1,5 +1,5 @@
-const KOBOI_API_KEY = 'sk-yYZlMG4TnNb2curlh9fwfg'; // berawalan sk-...
-// Pixabay API Key sudah dihapus
+const KOBOI_API_KEY = 'sk-yYZlMG4TnNb2curlh9fwfg'; 
+
 let arrayGambarTerpilih = []; 
 
 // --- FITUR AI (KOBOI) & PENCARIAN SVG (ICONIFY) ---
@@ -16,7 +16,6 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     const prompt = `Skrip: "${scriptText}". Ekstrak maksimal 3 KATA BENDA visual utama. Output HARUS murni array JSON teks dalam bahasa Inggris tanpa embel-embel. Contoh: ["desk", "lamp", "laptop"]`;
 
     try {
-        // 1. TANYA AI KOBOI UNTUK KATA KUNCI
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -43,7 +42,6 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
         const keywords = JSON.parse(jsonMatch[0]);
         gallery.innerHTML = ""; 
 
-        // 2. MENCARI SVG MURNI DI ICONIFY BERDASARKAN KATA KUNCI KOBOI
         for (let keyword of keywords) {
             const barisObjek = document.createElement('div');
             barisObjek.style.marginBottom = "15px";
@@ -51,7 +49,6 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
             barisObjek.style.borderBottom = "1px solid #ddd";
             barisObjek.innerHTML = `<p style="margin: 5px 0; font-weight: bold; color: #333;">Pilih Sketsa untuk: "${keyword}"</p>`;
             
-            // Cari ikon garis murni
             const iconifyUrl = `https://api.iconify.design/search?query=${keyword}+line&limit=5`;
             const res = await fetch(iconifyUrl);
             const iconData = await res.json();
@@ -61,7 +58,6 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                     const [prefix, name] = iconName.split(':');
                     const svgUrl = `https://api.iconify.design/${prefix}/${name}.svg`;
                     
-                    // Tarik kode SVG murni
                     const svgResponse = await fetch(svgUrl);
                     const svgCode = await svgResponse.text();
 
@@ -105,10 +101,8 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     }
 });
 
-// FUNGSI OTAK AI SEMENTARA (Kamus Pintar)
 function ekstrakKataKunci(teks) {
     const t = teks.toLowerCase();
-    
     if (t.includes("meja") || t.includes("kantor") || t.includes("kerja")) return "desk";
     if (t.includes("lampu") || t.includes("terang") || t.includes("ide")) return "lamp";
     if (t.includes("kucing") || t.includes("hewan") || t.includes("peliharaan")) return "cat";
@@ -118,10 +112,10 @@ function ekstrakKataKunci(teks) {
     if (t.includes("rumah") || t.includes("keluarga")) return "house";
     if (t.includes("pohon") || t.includes("hutan") || t.includes("alam")) return "tree";
     if (t.includes("uang") || t.includes("gaji") || t.includes("kaya")) return "money";
-    
-    return "doodle"; // Kata kunci default jika AI kebingungan
+    return "doodle"; 
 }
-// --- FITUR UPLOAD GAMBAR MANUAL (SEMUA FORMAT: SVG, PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dll) ---
+
+// --- FITUR UPLOAD GAMBAR MANUAL (SEMUA FORMAT BISA MASUK) ---
 document.getElementById('uploadManualBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
 });
@@ -130,45 +124,28 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // REVISI: Validasi longgar berbasis MIME type ATAU ekstensi file,
-    // supaya semua jenis gambar diterima, bukan hanya SVG.
     const ekstensiGambar = /\.(svg|png|jpe?g|gif|webp|bmp|ico|avif)$/i;
     const isGambar = file.type.startsWith('image/') || ekstensiGambar.test(file.name);
 
     if (!isGambar) {
-        alert("File yang dipilih bukan file gambar. Silakan pilih SVG, PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, atau AVIF.");
+        alert("Pilih file gambar yang valid!");
         e.target.value = '';
         return;
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-        pilihGambar(event.target.result); 
-    };
-    reader.onerror = () => {
-        alert("Gagal membaca file gambar. Coba file lain.");
-        e.target.value = '';
-    };
+    reader.onload = (event) => { pilihGambar(event.target.result); };
+    reader.onerror = () => { alert("Gagal membaca file."); e.target.value = ''; };
     
-    // Deteksi SVG (dibaca sebagai teks murni agar bisa dianimasikan dengan Vivus).
-    // SEMUA format lain (PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dst) dibaca
-    // sebagai Data URL (base64) sehingga bisa langsung ditampilkan & digambar ke canvas.
     const isSVG = file.type.includes("svg") || file.name.toLowerCase().endsWith('.svg');
-    if (isSVG) {
-        reader.readAsText(file);
-    } else {
-        reader.readAsDataURL(file); 
-    }
-    
+    if (isSVG) { reader.readAsText(file); } else { reader.readAsDataURL(file); }
     e.target.value = ''; 
 });
 
-// --- LOGIKA PEMILIHAN GAMBAR ---
 function pilihGambar(imgSrc) {
     if (arrayGambarTerpilih.length >= 3) {
-        return alert("Kamu sudah memilih 3 gambar! Klik tombol Rekam Video di bawah.");
+        return alert("Maksimal 3 gambar untuk adegan 10 detik!");
     }
-    
     arrayGambarTerpilih.push(imgSrc);
     document.getElementById('gambarTerpilihInfo').innerText = `Gambar Terpilih: ${arrayGambarTerpilih.length} / 3`;
     document.getElementById('gambarTerpilihInfo').style.color = "green";
@@ -178,11 +155,11 @@ function pilihGambar(imgSrc) {
     }
 }
 
-// --- TOMBOL 2: RENDER & REKAM VIDEO (Menggunakan gambar yang dipilih) ---
+// --- MESIN RENDER DAN REKAM VIDEO ---
 document.getElementById('recordBtn').addEventListener('click', async () => {
     const btn = document.getElementById('recordBtn');
     btn.disabled = true;
-    btn.innerText = "Merekam ke Canvas... Harap Tunggu 8 Detik";
+    btn.innerText = "Merekam ke Canvas... Harap Tunggu 10 Detik";
     
     await mulaiAnimasiDanRekam(arrayGambarTerpilih);
     
@@ -190,61 +167,26 @@ document.getElementById('recordBtn').addEventListener('click', async () => {
     document.getElementById('downloadBtn').style.display = "inline-block";
 });
 
-// Fungsi pintar untuk mengatur ukuran & posisi gambar secara otomatis
-function getLayout(index, totalImages) {
-    const canvasW = 640;
-    const canvasH = 360;
-    let w, h, x, y;
-
-    if (totalImages === 1) {
-        w = 280; h = 280;
-        x = (canvasW - w) / 2;
-    } else if (totalImages === 2) {
-        w = 200; h = 200;
-        let gap = 50; 
-        let totalArea = (w * 2) + gap;
-        let startX = (canvasW - totalArea) / 2;
-        x = startX + (index * (w + gap));
-    } else { 
-        w = 150; h = 150;
-        let gap = 30;
-        let totalArea = (w * 3) + (gap * 2);
-        let startX = (canvasW - totalArea) / 2;
-        x = startX + (index * (w + gap));
-    }
-    y = (canvasH - h) / 2;
-    return { x, y, width: w, height: h };
-}
-
-// --- FUNGSI REKAMAN V6 (MESIN KOMPOSISI SATU KANVAS) ---
 async function mulaiAnimasiDanRekam(daftarGambar) {
-    if (typeof Vivus === 'undefined') {
-        alert("Library Vivus tidak ditemukan!");
-        return;
-    }
+    if (typeof Vivus === 'undefined') return alert("Library Vivus hilang!");
 
     const canvas = document.getElementById('whiteboardCanvas');
     const ctx = canvas.getContext('2d');
     const svgLayer = document.getElementById('svgLayer');
 
-    // 1. BERSIHKAN KANVAS HANYA 1 KALI DI AWAL
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     svgLayer.innerHTML = "";
 
-    // 2. LOGIKA LAYOUT: Titik koordinat agar gambar tidak saling tumpuk
     const layout = [
-        { left: "50px", top: "80px", size: "220px" },   // Gambar 1: Kiri
-        { left: "350px", top: "80px", size: "220px" },  // Gambar 2: Kanan
-        { left: "200px", top: "180px", size: "180px" }  // Gambar 3: Tengah Bawah
+        { left: "50px", top: "80px", size: "220px" },  
+        { left: "350px", top: "80px", size: "220px" }, 
+        { left: "200px", top: "180px", size: "180px" }  
     ];
 
-    // 3. LOGIKA WAKTU (TARGET 10 DETIK TOTAL)
-    // Vivus menggunakan frame (bukan milidetik). 10 detik = ~600 frame total.
     const totalFrame = 600; 
     const framePerGambar = Math.floor(totalFrame / daftarGambar.length);
 
-    // Mulai Rekaman
     const stream = canvas.captureStream(30);
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
     let chunks = [];
@@ -260,24 +202,20 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
 
     mediaRecorder.start();
 
-    // 4. GAMBAR SATU PER SATU TANPA MENGHAPUS KANVAS
     for (let i = 0; i < daftarGambar.length; i++) {
         const posisi = layout[i % layout.length];
         await prosesSatuGambarSVG(daftarGambar[i], canvas, ctx, svgLayer, posisi, framePerGambar);
     }
 
-    // Berhenti merekam 1 detik setelah semuanya selesai
     setTimeout(() => { mediaRecorder.stop(); }, 1000);
-
     return janjiRekaman;
 }
 
-// FUNGSI BANTUAN: Memproses 1 gambar (SVG ATAU FORMAT LAIN) dan menempelkannya ke kanvas permanen
+// --- FUNGSI PROSES GAMBAR DENGAN TANGAN PENSIL ---
 function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame) {
     return new Promise((resolve) => {
         
-        // --- 1. JIKA GAMBAR BERUPA FOTO/RASTER (PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dll) ---
-        // Semua format ini masuk ke sini karena dibaca sebagai Data URL saat diunggah.
+        // 1. JIKA GAMBAR BUKAN VEKTOR (PNG/JPG) - EFEK ARSIR TANGAN
         if (svgData.startsWith('data:')) {
             const img = new Image();
             img.onload = function () {
@@ -285,41 +223,42 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                 const y = parseInt(posisi.top);
                 const s = parseInt(posisi.size);
                 
-                // Tempelkan foto langsung ke kanvas utama
-                ctx.drawImage(img, x, y, s, s);
-                
-                // Hitung waktu jeda agar timing rekaman 10 detik tetap akurat (asumsi 60 fps)
-                const estimasiWaktu = (durasiFrame / 60) * 1000; 
-                setTimeout(() => {
-                    resolve(); // Lanjut ke gambar berikutnya setelah jeda
-                }, estimasiWaktu + 500);
+                let frameAktif = 0;
+                function arsiranTangan() {
+                    if (frameAktif > durasiFrame) {
+                        setTimeout(() => { resolve(); }, 500);
+                        return;
+                    }
+                    // Cetak gambar ke layar
+                    ctx.drawImage(img, x, y, s, s);
+                    
+                    // Hitung pola gerak tangan zig-zag seperti mewarnai
+                    let progress = frameAktif / durasiFrame;
+                    let penX = x + (progress * s);
+                    let penY = y + (Math.abs(Math.sin(progress * Math.PI * 5)) * s);
+
+                    // Tambahkan stiker tangan pensil
+                    ctx.font = "40px Arial";
+                    ctx.fillText("✍🏽", penX - 25, penY + 15);
+                    
+                    frameAktif++;
+                    requestAnimationFrame(arsiranTangan);
+                }
+                arsiranTangan();
             };
-            // REVISI: Jika gambar gagal dimuat (file korup/format tak didukung browser),
-            // proses tetap lanjut ke gambar berikutnya alih-alih macet selamanya.
-            img.onerror = function () {
-                console.error("Gagal memuat gambar, dilewati:", posisi);
-                resolve();
-            };
+            img.onerror = () => resolve();
             img.src = svgData;
-            return; // Hentikan kode agar tidak membaca logika SVG di bawah
+            return; 
         }
 
-        // --- 2. JIKA GAMBAR BERUPA VEKTOR MURNI (SVG) ---
-        // Buat elemen SVG baru dan Tumpuk (Jangan hapus yang lama)
+        // 2. JIKA GAMBAR VEKTOR SVG - EFEK TANGAN MENGIKUTI JALUR PRESISI
         const wrapper = document.createElement('div');
         wrapper.innerHTML = svgData;
         const svgElement = wrapper.querySelector('svg');
-        
-        if (!svgElement) {
-            resolve();
-            return;
-        }
+        if (!svgElement) return resolve();
 
-        if (!svgElement.getAttribute('xmlns')) {
-            svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        }
+        if (!svgElement.getAttribute('xmlns')) svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
-        // Atur posisi sesuai layout AI
         svgElement.style.width = posisi.size;
         svgElement.style.height = posisi.size;
         svgElement.style.position = "absolute";
@@ -334,24 +273,26 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
             p.style.vectorEffect = "non-scaling-stroke";
         });
 
-        // Masukkan ke layar kaca
         svgLayer.appendChild(svgElement);
 
-        let isSyncing = true;
+        // Rumus matematika menghitung skala koordinat SVG ke Kanvas
+        let viewBox = svgElement.viewBox.baseVal;
+        let svgW = viewBox ? viewBox.width : (parseFloat(svgElement.getAttribute('width')) || 24);
+        let svgH = viewBox ? viewBox.height : (parseFloat(svgElement.getAttribute('height')) || 24);
+        let scaleX = parseInt(posisi.size) / svgW;
+        let scaleY = parseInt(posisi.size) / svgH;
 
-        // Eksekusi Animasi lambat
-        new Vivus(svgElement, {
+        let isSyncing = true;
+        let mesinVivus = null;
+
+        mesinVivus = new Vivus(svgElement, {
             type: 'oneByOne', 
             duration: durasiFrame,    
             animTimingFunction: Vivus.EASE
         }, function () {
-            setTimeout(() => {
-                isSyncing = false; 
-                resolve(); 
-            }, 500); // Jeda setengah detik sebelum gambar selanjutnya
+            setTimeout(() => { isSyncing = false; resolve(); }, 500); 
         });
 
-        // Sinkronisasi Kanvas (Hanya menggambar, tidak menghapus)
         function syncToCanvas() {
             if (!isSyncing) return; 
             
@@ -365,8 +306,44 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                 const x = parseInt(posisi.left);
                 const y = parseInt(posisi.top);
                 const s = parseInt(posisi.size);
-                // Gambar langsung ditimpa ke kanvas (seperti stempel)
+                
                 ctx.drawImage(img, x, y, s, s);
+
+                // --- ALGORITMA PELACAK KOORDINAT TANGAN (ZERO BUG) ---
+                if (mesinVivus && mesinVivus.currentFrame < mesinVivus.frameCount) {
+                    let penX = 0; let penY = 0;
+                    let garisAktifDitemukan = false;
+                    const frame = mesinVivus.currentFrame;
+
+                    for (let i = 0; i < mesinVivus.map.length; i++) {
+                        const item = mesinVivus.map[i];
+                        if (frame >= item.startAt && frame <= (item.startAt + item.duration)) {
+                            let kemajuanGaris = (frame - item.startAt) / item.duration;
+                            try {
+                                if (item.el.tagName.toLowerCase() === 'path') {
+                                    const titik = item.el.getPointAtLength(kemajuanGaris * item.el.getTotalLength());
+                                    penX = titik.x; penY = titik.y;
+                                } else {
+                                    const kotak = item.el.getBBox();
+                                    penX = kotak.x + (kotak.width * kemajuanGaris);
+                                    penY = kotak.y + (kotak.height * kemajuanGaris);
+                                }
+                                garisAktifDitemukan = true;
+                            } catch(e) {}
+                            break; // Berhenti mencari jika sudah menemukan garis yang aktif
+                        }
+                    }
+
+                    if (garisAktifDitemukan) {
+                        const koordinatAkhirX = x + (penX * scaleX);
+                        const koordinatAkhirY = y + (penY * scaleY);
+                        
+                        // Menampilkan tangan sedang menggambar
+                        ctx.font = "45px Arial";
+                        ctx.fillText("✍🏽", koordinatAkhirX - 25, koordinatAkhirY + 15);
+                    }
+                }
+
                 DOMURL.revokeObjectURL(url); 
             };
             img.src = url;
