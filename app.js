@@ -211,11 +211,11 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
     return janjiRekaman;
 }
 
-// --- FUNGSI PROSES GAMBAR DENGAN TANGAN PENSIL ---
+// --- FUNGSI PROSES GAMBAR DENGAN TANGAN PENSIL (REVEAL DARI 0) ---
 function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame) {
     return new Promise((resolve) => {
         
-        // 1. JIKA GAMBAR BUKAN VEKTOR (PNG/JPG) - EFEK ARSIR TANGAN
+        // --- 1. JIKA GAMBAR BUKAN VEKTOR (PNG/JPG) - TEKNIK REVEAL DARI 0 ---
         if (svgData.startsWith('data:')) {
             const img = new Image();
             img.onload = function () {
@@ -224,34 +224,62 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                 const s = parseInt(posisi.size);
                 
                 let frameAktif = 0;
-                function arsiranTangan() {
+                
+                // Kita bagi gambar menjadi 15 baris arsiran untuk efek menggambar dari atas ke bawah
+                const jumlahBaris = 15;
+                const tinggiBaris = s / jumlahBaris;
+
+                function arsiranTanganDariNol() {
                     if (frameAktif > durasiFrame) {
+                        // Pastikan di frame terakhir seluruh gambar tercetak sempurna
+                        ctx.drawImage(img, x, y, s, s);
                         setTimeout(() => { resolve(); }, 500);
                         return;
                     }
-                    // Cetak gambar ke layar
+                    
+                    let progress = frameAktif / durasiFrame; // Nilai 0.0 sampai 1.0
+                    
+                    // Logika Masking: Mencari tahu posisi tangan saat ini
+                    let barisSaatIni = Math.floor(progress * jumlahBaris);
+                    let progressDiBarisIni = (progress * jumlahBaris) - barisSaatIni;
+
+                    // Koordinat ujung pensil (Kiri ke kanan, turun ke bawah)
+                    let currentX = x + (progressDiBarisIni * s);
+                    let currentY = y + (barisSaatIni * tinggiBaris);
+
+                    // --- INI KUNCI EFEK DARI NOL ---
+                    // Kita potong (clip) kanvas, sehingga gambar HANYA muncul di area yang sudah dilewati tangan
+                    ctx.save();
+                    ctx.beginPath();
+                    
+                    // 1. Area baris-baris atas yang sudah selesai digambar penuh
+                    ctx.rect(x, y, s, barisSaatIni * tinggiBaris);
+                    // 2. Area baris saat ini yang sedang berproses dari kiri ke kanan
+                    ctx.rect(x, y + (barisSaatIni * tinggiBaris), progressDiBarisIni * s, tinggiBaris);
+                    
+                    ctx.clip(); // Potong kanvas sesuai bentuk kotak di atas
+
+                    // Gambar fotonya. Karena kanvas di-clip, gambar HANYA muncul bertahap mengikuti kotak!
                     ctx.drawImage(img, x, y, s, s);
                     
-                    // Hitung pola gerak tangan zig-zag seperti mewarnai
-                    let progress = frameAktif / durasiFrame;
-                    let penX = x + (progress * s);
-                    let penY = y + (Math.abs(Math.sin(progress * Math.PI * 5)) * s);
+                    ctx.restore(); // Lepaskan potongan kanvas untuk menggambar tangan
 
-                    // Tambahkan stiker tangan pensil
-                    ctx.font = "40px Arial";
-                    ctx.fillText("✍🏽", penX - 25, penY + 15);
+                    // --- GAMBAR TANGAN PENSIL ---
+                    ctx.font = "45px Arial";
+                    // Tangan diletakkan persis di ujung area yang sedang di-reveal
+                    ctx.fillText("✍🏽", currentX - 25, currentY + 15);
                     
                     frameAktif++;
-                    requestAnimationFrame(arsiranTangan);
+                    requestAnimationFrame(arsiranTanganDariNol);
                 }
-                arsiranTangan();
+                arsiranTanganDariNol();
             };
             img.onerror = () => resolve();
             img.src = svgData;
             return; 
         }
 
-        // 2. JIKA GAMBAR VEKTOR SVG - EFEK TANGAN MENGIKUTI JALUR PRESISI
+        // --- 2. JIKA GAMBAR VEKTOR SVG - EFEK TANGAN MENGIKUTI JALUR ---
         const wrapper = document.createElement('div');
         wrapper.innerHTML = svgData;
         const svgElement = wrapper.querySelector('svg');
@@ -275,7 +303,6 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
 
         svgLayer.appendChild(svgElement);
 
-        // Rumus matematika menghitung skala koordinat SVG ke Kanvas
         let viewBox = svgElement.viewBox.baseVal;
         let svgW = viewBox ? viewBox.width : (parseFloat(svgElement.getAttribute('width')) || 24);
         let svgH = viewBox ? viewBox.height : (parseFloat(svgElement.getAttribute('height')) || 24);
@@ -309,7 +336,6 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                 
                 ctx.drawImage(img, x, y, s, s);
 
-                // --- ALGORITMA PELACAK KOORDINAT TANGAN (ZERO BUG) ---
                 if (mesinVivus && mesinVivus.currentFrame < mesinVivus.frameCount) {
                     let penX = 0; let penY = 0;
                     let garisAktifDitemukan = false;
@@ -330,7 +356,7 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                                 }
                                 garisAktifDitemukan = true;
                             } catch(e) {}
-                            break; // Berhenti mencari jika sudah menemukan garis yang aktif
+                            break; 
                         }
                     }
 
@@ -338,7 +364,6 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                         const koordinatAkhirX = x + (penX * scaleX);
                         const koordinatAkhirY = y + (penY * scaleY);
                         
-                        // Menampilkan tangan sedang menggambar
                         ctx.font = "45px Arial";
                         ctx.fillText("✍🏽", koordinatAkhirX - 25, koordinatAkhirY + 15);
                     }
