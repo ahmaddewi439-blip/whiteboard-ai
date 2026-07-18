@@ -121,7 +121,7 @@ function ekstrakKataKunci(teks) {
     
     return "doodle"; // Kata kunci default jika AI kebingungan
 }
-// --- FITUR UPLOAD GAMBAR MANUAL ---
+// --- FITUR UPLOAD GAMBAR MANUAL (SEMUA FORMAT: SVG, PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dll) ---
 document.getElementById('uploadManualBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
 });
@@ -129,14 +129,32 @@ document.getElementById('uploadManualBtn').addEventListener('click', () => {
 document.getElementById('fileInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
+    // REVISI: Validasi longgar berbasis MIME type ATAU ekstensi file,
+    // supaya semua jenis gambar diterima, bukan hanya SVG.
+    const ekstensiGambar = /\.(svg|png|jpe?g|gif|webp|bmp|ico|avif)$/i;
+    const isGambar = file.type.startsWith('image/') || ekstensiGambar.test(file.name);
+
+    if (!isGambar) {
+        alert("File yang dipilih bukan file gambar. Silakan pilih SVG, PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, atau AVIF.");
+        e.target.value = '';
+        return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
         pilihGambar(event.target.result); 
     };
+    reader.onerror = () => {
+        alert("Gagal membaca file gambar. Coba file lain.");
+        e.target.value = '';
+    };
     
-    // PERBAIKAN: Deteksi SVG yang lebih kebal dan toleran
-    if (file.type.includes("svg") || file.name.toLowerCase().endsWith('.svg')) {
+    // Deteksi SVG (dibaca sebagai teks murni agar bisa dianimasikan dengan Vivus).
+    // SEMUA format lain (PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dst) dibaca
+    // sebagai Data URL (base64) sehingga bisa langsung ditampilkan & digambar ke canvas.
+    const isSVG = file.type.includes("svg") || file.name.toLowerCase().endsWith('.svg');
+    if (isSVG) {
         reader.readAsText(file);
     } else {
         reader.readAsDataURL(file); 
@@ -254,11 +272,12 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
     return janjiRekaman;
 }
 
-// FUNGSI BANTUAN: Memproses 1 gambar dan menempelkannya ke kanvas permanen
+// FUNGSI BANTUAN: Memproses 1 gambar (SVG ATAU FORMAT LAIN) dan menempelkannya ke kanvas permanen
 function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame) {
     return new Promise((resolve) => {
         
-        // --- 1. JIKA GAMBAR BERUPA FOTO BIASA (PNG/JPG) ---
+        // --- 1. JIKA GAMBAR BERUPA FOTO/RASTER (PNG, JPG, JPEG, GIF, WEBP, BMP, ICO, AVIF, dll) ---
+        // Semua format ini masuk ke sini karena dibaca sebagai Data URL saat diunggah.
         if (svgData.startsWith('data:')) {
             const img = new Image();
             img.onload = function () {
@@ -274,6 +293,12 @@ function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame
                 setTimeout(() => {
                     resolve(); // Lanjut ke gambar berikutnya setelah jeda
                 }, estimasiWaktu + 500);
+            };
+            // REVISI: Jika gambar gagal dimuat (file korup/format tak didukung browser),
+            // proses tetap lanjut ke gambar berikutnya alih-alih macet selamanya.
+            img.onerror = function () {
+                console.error("Gagal memuat gambar, dilewati:", posisi);
+                resolve();
             };
             img.src = svgData;
             return; // Hentikan kode agar tidak membaca logika SVG di bawah
