@@ -257,13 +257,38 @@ async function mulaiAnimasiDanRekam(daftarGambar) {
 // FUNGSI BANTUAN: Memproses 1 gambar dan menempelkannya ke kanvas permanen
 function prosesSatuGambarSVG(svgData, canvas, ctx, svgLayer, posisi, durasiFrame) {
     return new Promise((resolve) => {
-        if (svgData.startsWith('data:')) return resolve();
+        
+        // --- 1. JIKA GAMBAR BERUPA FOTO BIASA (PNG/JPG) ---
+        if (svgData.startsWith('data:')) {
+            const img = new Image();
+            img.onload = function () {
+                const x = parseInt(posisi.left);
+                const y = parseInt(posisi.top);
+                const s = parseInt(posisi.size);
+                
+                // Tempelkan foto langsung ke kanvas utama
+                ctx.drawImage(img, x, y, s, s);
+                
+                // Hitung waktu jeda agar timing rekaman 10 detik tetap akurat (asumsi 60 fps)
+                const estimasiWaktu = (durasiFrame / 60) * 1000; 
+                setTimeout(() => {
+                    resolve(); // Lanjut ke gambar berikutnya setelah jeda
+                }, estimasiWaktu + 500);
+            };
+            img.src = svgData;
+            return; // Hentikan kode agar tidak membaca logika SVG di bawah
+        }
 
+        // --- 2. JIKA GAMBAR BERUPA VEKTOR MURNI (SVG) ---
         // Buat elemen SVG baru dan Tumpuk (Jangan hapus yang lama)
         const wrapper = document.createElement('div');
         wrapper.innerHTML = svgData;
         const svgElement = wrapper.querySelector('svg');
-        if (!svgElement) return resolve();
+        
+        if (!svgElement) {
+            resolve();
+            return;
+        }
 
         if (!svgElement.getAttribute('xmlns')) {
             svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
